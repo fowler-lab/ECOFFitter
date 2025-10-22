@@ -4,7 +4,7 @@ from intreg.intreg import IntReg
 from .utils import read_input, read_params
 from scipy.optimize import minimize
 
-class EcoffFitter:
+class ECOFFitter:
 
     def __init__(
             self,

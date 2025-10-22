@@ -1,5 +1,5 @@
 import argparse
-from ecoff_fitter import EcoffFitter
+from ecoff_fitter import ECOFFitter
 
 
 def parse_ecoff_generator():
