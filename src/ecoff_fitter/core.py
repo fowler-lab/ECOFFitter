@@ -3,6 +3,12 @@ from scipy.stats import norm
 from intreg.intreg import IntReg
 from .utils import read_input, read_params
 from scipy.optimize import minimize
+from .defence import (
+    validate_input_source,
+    validate_params_source,
+    validate_mic_data,
+    validate_params,
+)
 
 
 class ECOFFitter:
@@ -46,12 +52,21 @@ class ECOFFitter:
             tail_dilutions (int | None): Tail dilutions to handle censoring (default 1).
         """
 
-        #read input dataframe or file
+        validate_input_source(input)
+        validate_params_source(params)
+
+        # read input dataframe or file
         self.obj_df = read_input(input)
+        # check input values
+        validate_mic_data(self.obj_df)
 
         if params is not None:
-            #overide explicit arguments with input dict/file
-            dilution_factor, distributions, tail_dilutions = read_params(params)
+            # overide explicit arguments with input dict/file
+            dilution_factor, distributions, tail_dilutions = read_params(
+                params, dilution_factor, distributions, tail_dilutions
+            )
+        # check parameter values
+        validate_params(dilution_factor, distributions, tail_dilutions)
 
         self.dilution_factor = dilution_factor
         self.distributions = distributions
@@ -190,7 +205,7 @@ class ECOFFitter:
             object: Result with fitted parameters, log-likelihood, and convergence info.
         """
 
-        #initial mixture proportions
+        # initial mixture proportions
         p1 = IntReg.interval_prob(y_low, y_high, mu1, sigma1)
         p2 = IntReg.interval_prob(y_low, y_high, mu2, sigma2)
         prev_ll = -np.inf

@@ -56,13 +56,20 @@ def read_input(data, sheet_name=None):
     return df
 
 
-def read_params(params):
+import os
+import yaml
+
+
+def read_params(params, dflt_dilution, dflt_dists, dflt_tails):
     """
-    Read ECOFF model parameters from a file or dictionary.
+    Read ECOFF model parameters from a file or dictionary, falling back to provided defaults.
 
     Args:
         params (str | dict): File path to a YAML or text parameter file,
             or a dictionary containing configuration values.
+        dflt_dilution (int): Default dilution factor.
+        dflt_dists (int): Default number of distributions.
+        dflt_tails (int | None): Default number of tail dilutions.
 
     Returns:
         tuple: (dilution_factor, distributions, tail_dilutions)
@@ -74,17 +81,17 @@ def read_params(params):
     """
 
     if isinstance(params, str):
-
         if not os.path.exists(params):
             raise FileNotFoundError(f"Parameter file not found: {params}")
 
         ext = os.path.splitext(params)[-1].lower()
 
-        if ext in [".yaml", "yml"]:
+        if ext in [".yaml", ".yml"]:
             with open(params, "r") as f:
-                params = yaml.safe_load(f)
+                params = yaml.safe_load(f) or {}
+
         elif ext == ".txt":
-            params = {}
+            parsed = {}
             with open(params, "r") as f:
                 for line in f:
                     line = line.strip()
@@ -92,27 +99,28 @@ def read_params(params):
                         continue
                     key, val = [x.strip() for x in line.split("=", 1)]
                     if key == "dilution_factor":
-                        params[key] = int(val)
+                        parsed[key] = int(val)
                     elif key == "tail_dilutions":
                         if val.lower() == "none":
-                            params[key] = None
+                            parsed[key] = None
                         else:
-                            params[key] = int(val)
+                            parsed[key] = int(val)
                     elif key == "distributions":
-                        params[key] = int(val)
+                        parsed[key] = int(val)
                     else:
-                        params[key] = val
+                        parsed[key] = val
+            params = parsed
         else:
             raise ValueError(f"Unsupported file type: {ext}")
 
     else:
+        assert isinstance(params, dict), (
+            "params must either be a file path or a dictionary"
+        )
 
-        assert isinstance(
-            params, dict
-        ), "params must either be a file path or a dictionary"
+    # --- Apply defaults for any missing keys ---
+    dilution_factor = params.get("dilution_factor", dflt_dilution)
+    distributions = params.get("distributions", dflt_dists)
+    tail_dilutions = params.get("tail_dilutions", dflt_tails)
 
-    return (
-        params["dilution_factor"],
-        params["distributions"],
-        params["tail_dilutions"],
-    )
+    return dilution_factor, distributions, tail_dilutions
