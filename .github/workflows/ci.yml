@@ -6,6 +6,10 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    defaults:
+      run:
+        shell: bash -l {0}
+
     steps:
       - name: Check out repository code
         uses: actions/checkout@v2
@@ -24,7 +28,7 @@ jobs:
           python-version: 3.11
           channels: conda-forge,defaults
 
-      - name: Activate Conda environment and install ECOFFitter
+      - name: Install ECOFFitter
         run: |
           pip install -e .
 
