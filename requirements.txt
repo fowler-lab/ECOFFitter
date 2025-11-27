@@ -1,0 +1,7 @@
+scipy
+pytest
+pandas
+joblib
+PyYAML
+matplotlib
+pytest-cov

@@ -2,6 +2,9 @@ import pandas as pd
 import yaml
 import numpy as np
 import os
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.stats import norm
 
 
 def read_input(data, sheet_name=None):
@@ -25,6 +28,8 @@ def read_input(data, sheet_name=None):
 
     if isinstance(data, pd.DataFrame):
         df = data.copy()
+    elif isinstance(data, dict):
+        df = pd.DataFrame.from_dict(data)
     elif isinstance(data, str):
 
         ext = os.path.splitext(data)[-1].lower()
@@ -32,7 +37,7 @@ def read_input(data, sheet_name=None):
         if ext in [".csv"]:
             df = pd.read_csv(data)
         elif ext in [".tsv", ".txt"]:
-            df = pd.read_csv(data, sep="\t")
+            df = pd.read_csv(data, sep=r"\s+")
         elif ext in [".xlsx", ".xls"]:
             df = pd.read_excel(data, sheet_name=sheet_name)
         else:
@@ -54,11 +59,6 @@ def read_input(data, sheet_name=None):
     df = df.reset_index(drop=True)
 
     return df
-
-
-import os
-import yaml
-
 
 def read_params(params, dflt_dilution, dflt_dists, dflt_tails):
     """

@@ -5,14 +5,14 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "ecoff-fitter"
 version = "0.1.0"
-description = "A Python tool to fit an internal regression model to censored Minimum Inhibitory Concentration values"
+description = "A Python tool to fit an interval regression model to censored Minimum Inhibitory Concentration values"
 readme = "README.md"
 authors = [
     { name = "Dylan Adlard", email = "dylan.adlard@ndm.ox.ac.uk" },
     { name = "Philip W Fowler" }
 ]
 license = { text = "MIT" }
-requires-python = ">=3.6"
+requires-python = ">=3.9"
 keywords = ["ECOFF", "antimicrobial resistance", "minimum inhibitory concentration", "MIC"]
 classifiers = [
     "Programming Language :: Python :: 3"
@@ -21,7 +21,9 @@ dependencies = [
     "numpy",
     "scipy",
     "pandas",
-    "piezo",
+    "joblib",
+    "matplotlib",
+    "PyYAML"
 ]
 
 [project.urls]
@@ -35,3 +37,8 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.coverage.run]
+omit = [
+    "*/ecoff_fitter/wts.py",
+]

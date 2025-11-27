@@ -8,7 +8,7 @@ def validate_input_source(input):
     Validate the input source for ECOFFitter.
 
     Args:
-        input (str | pd.DataFrame): Input MIC data or file path.
+        input (str | pd.DataFrame | dict): Input MIC data or file path or dict.
 
     Raises:
         FileNotFoundError: If the file does not exist.
@@ -19,6 +19,11 @@ def validate_input_source(input):
         if not {"MIC", "observations"}.issubset(input.columns):
             raise ValueError(
                 "Input DataFrame must contain 'MIC' and 'observations' columns."
+            )
+    elif isinstance(input, dict):
+        if not {"MIC", "observations"}.issubset(input.keys()):
+            raise ValueError(
+                "Input dictionary must contain 'MIC' and 'observations' keys."
             )
     elif isinstance(input, str):
         if not os.path.exists(input):
@@ -95,9 +100,33 @@ def validate_params(dilution_factor, distributions, tail_dilutions):
         raise ValueError("dilution_factor must be an integer > 1.")
     
     if distributions not in [1, 2]:
-        raise ValueError("Only 1 or 2-component mixtures are supported.")
+        raise NotImplementedError("Only 1 or 2-component mixtures are supported.")
     
     if tail_dilutions is not None and (
         not isinstance(tail_dilutions, int) or tail_dilutions < 0
     ):
         raise ValueError("tail_dilutions must be a non-negative integer or None.")
+
+
+
+def validate_output_path(path: str) -> bool:
+    """
+    Checks if the given path is safe and writable, and that the file extension is .txt or .pdf.
+
+    Returns True if valid, otherwise raises ValueError.
+    """
+    # Check extension
+    allowed_exts = ('.txt', '.pdf')
+    if not path.lower().endswith(allowed_exts):
+        raise ValueError(f"File must end with {allowed_exts}, got '{path}'")
+
+    directory = os.path.dirname(path) or '.'
+
+    if not os.path.exists(directory):
+        raise ValueError(f"Directory does not exist: {directory}")
+
+    if not os.access(directory, os.W_OK):
+        raise PermissionError(f"No write permission in directory: {directory}")
+
+    return True
+

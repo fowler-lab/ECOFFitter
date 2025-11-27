@@ -1,9 +1,9 @@
 import numpy as np
 from scipy.stats import norm
 from intreg.intreg import IntReg
-from .utils import read_input, read_params
+from ecoff_fitter.utils import read_input, read_params
 from scipy.optimize import minimize
-from .defence import (
+from ecoff_fitter.defence import (
     validate_input_source,
     validate_params_source,
     validate_mic_data,
@@ -127,6 +127,7 @@ class ECOFFitter:
         pi1 = 0.5
         pi2 = 1 - pi1
 
+
         # Run EM algorithm
         result = ECOFFitter._em_algorithm(
             y_low,
@@ -142,21 +143,22 @@ class ECOFFitter:
             tol=tol,
         )
 
-        def _neg_log_L(params):
-            """log likelihood function for refinement"""
-            mu1, log_sigma1, mu2, log_sigma2, logit_pi = params
-            sigma1, sigma2 = np.exp(log_sigma1), np.exp(log_sigma2)
-            pi1 = 1 / (1 + np.exp(-logit_pi))
-            pi2 = 1 - pi1
-
-            p1 = IntReg.interval_prob(y_low, y_high, mu1, sigma1)
-            p2 = IntReg.interval_prob(y_low, y_high, mu2, sigma2)
-
-            mixture_p = pi1 * p1 + pi2 * p2
-            return -np.sum(weights * np.log(mixture_p))
-
         # Optional refinement using minimizer
         if result.converged and options.get("refine", True):
+
+            def _neg_log_L(params):
+                """log likelihood function for refinement"""
+                mu1, log_sigma1, mu2, log_sigma2, logit_pi = params
+                sigma1, sigma2 = np.exp(log_sigma1), np.exp(log_sigma2)
+                pi1 = 1 / (1 + np.exp(-logit_pi))
+                pi2 = 1 - pi1
+
+                p1 = IntReg.interval_prob(y_low, y_high, mu1, sigma1)
+                p2 = IntReg.interval_prob(y_low, y_high, mu2, sigma2)
+
+                mixture_p = pi1 * p1 + pi2 * p2
+                return -np.sum(weights * np.log(mixture_p))
+
             init = result.x
             result_ref = minimize(_neg_log_L, init, method="L-BFGS-B")
             result.x = result_ref.x
@@ -173,7 +175,7 @@ class ECOFFitter:
             )
 
         return result
-
+    
     @staticmethod
     def _em_algorithm(
         y_low,
@@ -233,14 +235,14 @@ class ECOFFitter:
             mu2, log_sigma2 = res2.x
             sigma1, sigma2 = np.exp(log_sigma1), np.exp(log_sigma2)
 
-            # ----- Recompute p1, p2 using new parameters -----
+            # Recompute p1 and p2 using new parameters
             p1 = IntReg.interval_prob(y_low, y_high, mu1, sigma1)
             p2 = IntReg.interval_prob(y_low, y_high, mu2, sigma2)
 
-            # ----- Compute new log-likelihood -----
+            # Compute new log-likelihood
             ll = np.sum(weights * np.log(pi1 * p1 + pi2 * p2))
 
-            # ----- Check convergence -----
+            # Check convergence
             if np.abs(ll - prev_ll) < tol:
                 converged = True
                 break
@@ -351,39 +353,48 @@ class ECOFFitter:
                 (ecoff, z_percentile, mu1, sigma1, mu2, sigma2, model)
         """
 
-        assert (
-            0 < percentile < 100
-        ), "percentile must be a float or integer between 0 and 100"
-
         model = self.fit(options=options)
+        results = self.compute_ecoff(model, percentile)
+
+        # Return model as the last item for convenience
+        return (*results, model)
+
+    def compute_ecoff(self, model, percentile: float):
+        """
+        Compute ECOFF and related values given a fitted model and percentile.
+
+        Args:
+            model: Fitted IntReg or mixture model result from self.fit().
+            percentile (float): Percentile (e.g., 99 for 99th percentile).
+
+        Returns:
+            tuple: 
+              For 1-component: (ecoff, z_percentile, mu, sigma)
+              For 2-component: (ecoff, z_percentile, mu1, sigma1, mu2, sigma2)
+        """
+        assert 0 < percentile < 100, "percentile must be between 0 and 100"
+
+        z = norm.ppf(percentile / 100)
 
         if self.distributions == 1:
-            # Extract model parameters
             mu, log_sigma = model.x
             sigma = np.exp(log_sigma)
-            # Calulcate z-score for the given percentile
-            z = norm.ppf(percentile / 100)
-            # Calculate the percentile in log scale
             z_percentile = mu + z * sigma
-            # Convert the percentile back to the original MIC scale
-            ecoff = self.dilution_factor**z_percentile
+            ecoff = self.dilution_factor ** z_percentile
+            return ecoff, z_percentile, mu, sigma
 
-            return ecoff, z_percentile, mu, sigma, model
+        elif self.distributions == 2:
+            mu1, log_sigma1, mu2, log_sigma2, logit_pi = model.x
+            sigma1, sigma2 = np.exp(log_sigma1), np.exp(log_sigma2)
+
+            # pick WT (lower mean) component
+            mu_wt = mu1 if mu1 < mu2 else mu2
+            sigma_wt = sigma1 if mu1 < mu2 else sigma2
+
+            z_percentile = mu_wt + z * sigma_wt
+            ecoff = self.dilution_factor ** z_percentile
+
+            return ecoff, z_percentile, mu1, sigma1, mu2, sigma2
 
         else:
-            mu1, log_sigma1, mu2, log_sigma2, logit_pi = model.x
-
-            sigma_1 = np.exp(log_sigma1)
-            sigma_2 = np.exp(log_sigma2)
-
-            # pick WT component’s parameters
-            mu_wt = mu1 if mu1 < mu2 else mu2
-            sigma_wt = sigma_1 if mu1 < mu2 else sigma_2
-
-            # calculate ECOFF percentile
-            z = norm.ppf(percentile / 100)
-            z_percentile = mu_wt + z * sigma_wt
-            ecoff = self.dilution_factor**z_percentile
-
-            # return both components for reference (same order as your original)
-            return ecoff, z_percentile, mu1, sigma_1, mu2, sigma_2, model
+            raise NotImplementedError("Only 1 or 2 component mixtures supported")
