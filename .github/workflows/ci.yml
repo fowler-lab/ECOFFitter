@@ -15,23 +15,26 @@ jobs:
         with:
           auto-activate-base: false
 
-      - name: Create Conda environment
-        run: conda env create --file env.yml
+      - name: Set up Conda and Create Environment
+        uses: conda-incubator/setup-miniconda@v2
+        with:
+          auto-activate-base: false
+          activate-environment: ECOFFitter
+          environment-file: env.yml
+          python-version: 3.11
+          channels: conda-forge,defaults
 
       - name: Activate Conda environment and install ECOFFitter
         run: |
-          conda activate ECOFFitter
           pip install -e .
 
       - name: Verify Conda environment
         run: |
-          conda activate ECOFFitter
           conda info --all
           conda list
 
       - name: Run Pytest and Coverage
         run: |
-          conda activate ECOFFitter
           pytest --cov=ecoff_fitter tests/ --cov-report=xml:coverage.xml
 
       - name: Upload Coverage to Codecov
