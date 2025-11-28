@@ -52,3 +52,5 @@ dist/
 # PyInstaller
 *.manifest
 *.spec
+
+src/ecoff_fitter/wts.py

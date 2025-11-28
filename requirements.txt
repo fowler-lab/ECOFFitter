@@ -5,3 +5,4 @@ joblib
 PyYAML
 matplotlib
 pytest-cov
+intreg
