@@ -82,14 +82,16 @@ It must be a **tabular file** in one of these formats:
 
 ```text
 MIC     observations
-0.125   12
-0.25    34
-0.5     51
-1       63
-2       4
-4       20
-8       7
->=16    4
+0.06    1925
+0.12    1165
+0.25    341
+0.5     69
+1       27
+2       27
+4       13
+8       29
+<=0.03  1096
+>8      2196
 ```
 
 - censored balues (e.g >=16) are automatically detected and handled
