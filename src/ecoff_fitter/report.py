@@ -75,13 +75,13 @@ class GenerateReport:
         if self.distributions == 1:
             mu = self.mus[0]
             sigma = self.sigmas[0]
-            print(f"μ (mean): {self.dilution_factor**mu:.2f}")
-            print(f"σ (std dev): {self.dilution_factor**sigma:.2f}")
+            print(f"μ: {self.dilution_factor**mu:.2f}")
+            print(f"σ (folds): {self.dilution_factor**sigma:.2f}")
         else:
             print("\nComponent means and sigmas (original scale):")
             for i, (mu, sigma) in enumerate(zip(self.mus, self.sigmas), start=1):
                 print(f"  μ{i}: {self.dilution_factor**mu:.4f}, "
-                      f"σ{i}: {self.dilution_factor**sigma:.4f}")
+                      f"σ{i} (folds): {self.dilution_factor**sigma:.4f}")
 
         if verbose and self.model is not None:
             print("\n--- Model details ---")
@@ -102,13 +102,13 @@ class GenerateReport:
                 sigma = self.sigmas[0]
                 f.write(
                     f"μ: {self.dilution_factor**mu}, "
-                    f"σ: {self.dilution_factor**sigma}\n"
+                    f"σ (folds): {self.dilution_factor**sigma}\n"
                 )
             else:
                 for i, (mu, sigma) in enumerate(zip(self.mus, self.sigmas), start=1):
                     f.write(
                         f"μ{i}: {self.dilution_factor**mu}, "
-                        f"σ{i}: {self.dilution_factor**sigma}\n"
+                        f"σ{i} (folds): {self.dilution_factor**sigma}\n"
                     )
 
         print(f"\nResults saved to: {path}")
@@ -151,14 +151,14 @@ class GenerateReport:
                 mu = self.mus[0]
                 sigma = self.sigmas[0]
                 lines += [
-                    f"μ (mean): {self.dilution_factor**mu:.2f}",
-                    f"σ (std dev): {self.dilution_factor**sigma:.2f}",
+                    f"μ: {self.dilution_factor**mu:.2f}",
+                    f"σ: {self.dilution_factor**sigma:.2f}",
                 ]
             else:
                 for i, (mu, sigma) in enumerate(zip(self.mus, self.sigmas), start=1):
                     lines.append(
                         f"μ{i}: {self.dilution_factor**mu:.4f}, "
-                        f"σ{i}: {self.dilution_factor**sigma:.4f}"
+                        f"σ{i} (folds): {self.dilution_factor**sigma:.4f}"
                     )
 
             ax_text.text(

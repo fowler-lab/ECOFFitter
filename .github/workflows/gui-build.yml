@@ -1,0 +1,83 @@
+name: Build GUI App
+
+on:
+  push:
+    branches: [exe]
+  workflow_dispatch:
+
+jobs:
+  build-macos:
+    name: Build macOS .app
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.10.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10.9"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install -r requirements.txt
+          python -m pip install pyinstaller matplotlib scipy
+
+      - name: Build macOS app
+        run: |
+          pyinstaller --onefile --noconsole \
+            --paths src \
+            --add-data "src/ecoff_fitter:ecoff_fitter" \
+            --hidden-import matplotlib \
+            --hidden-import matplotlib.backends.backend_tkagg \
+            --collect-all scipy \
+            gui.py
+
+      - name: Zip macOS app
+        run: |
+          cd dist
+          zip -r gui.app.zip gui.app
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gui-macos
+          path: dist/gui.app.zip
+
+  build-windows:
+    name: Build Windows .exe
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Set up Python 3.10.9
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10.9"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install -r requirements.txt --upgrade pip setuptools wheel
+          pip install pyinstaller
+
+      - name: Build Windows exe
+        run: |
+          pyinstaller `
+            --onefile `
+            --noconsole `
+            --paths src `
+            --add-data "src/ecoff_fitter;ecoff_fitter" `
+            --hidden-import matplotlib `
+            --hidden-import matplotlib.backends.backend_tkagg `
+            --collect-all scipy `
+            gui.py
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gui-windows
+          path: dist/gui.exe

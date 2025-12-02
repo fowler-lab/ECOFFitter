@@ -281,8 +281,8 @@ def test_generate_report_print_stats_single_dist(capsys):
     out = capsys.readouterr().out
 
     assert "ECOFF (original scale): 4" in out
-    assert "μ (mean): 2.00" in out     # 2**1.0
-    assert "σ (std dev): 1.41" in out  # 2**0.5
+    assert "μ: 2.00" in out     # 2**1.0
+    assert "σ (folds): 1.41" in out  # 2**0.5
     assert "Model details" not in out
 
 def test_generate_report_print_stats_two_dist_verbose(capsys):
@@ -306,11 +306,11 @@ def test_generate_report_print_stats_two_dist_verbose(capsys):
 
     # WT component (lowest mean)
     assert "μ1: 2.0000" in out
-    assert "σ1: 1.1487" in out   # 2**0.2
+    assert "σ1 (folds): 1.1487" in out   # 2**0.2
 
     # Resistant component
     assert "μ2: 4.0000" in out
-    assert "σ2: 1.4142" in out   # 2**0.5
+    assert "σ2 (folds): 1.4142" in out   # 2**0.5
 
 
     assert "Model details" in out

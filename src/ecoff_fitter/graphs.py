@@ -119,10 +119,12 @@ def plot_mic_distribution(
 
     # Convert x axis to actual MIC values
     xticks = ax.get_xticks()
-    mic_labels = [f"{dilution_factor ** x:.3f}" for x in xticks]
+    mic_labels = [f"{dilution_factor ** x:.2g}" for x in xticks]
     ax.set_xticks(xticks)
     ax.set_xticklabels(mic_labels)
     ax.set_xlabel("MIC (mg/L)")
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
 
     ax.legend(fontsize=7, frameon=False)
 

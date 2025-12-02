@@ -54,3 +54,5 @@ dist/
 *.spec
 
 src/ecoff_fitter/wts.py
+
+*notes*.txt
