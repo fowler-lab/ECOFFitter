@@ -135,7 +135,7 @@ percentile: 99
 
 ## 📤 Output
 
-The tool produces one or more of the following.
+The tool produces one or more of the following:
 
 ---
 
