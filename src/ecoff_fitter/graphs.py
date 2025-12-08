@@ -64,19 +64,20 @@ def plot_mic_distribution(
     unique_intervals = sorted(set(intervals))
 
     counts = [
-        weights[(low_log == lo) & (high_log == hi)].sum()
-        for lo, hi in unique_intervals
+        weights[(low_log == lo) & (high_log == hi)].sum() for lo, hi in unique_intervals
     ]
     mids = [(lo + hi) / 2 for lo, hi in unique_intervals]
     widths = [hi - lo for lo, hi in unique_intervals]
 
     # Plot MIC intervals
     ax.bar(
-        mids, counts, width=widths,
+        mids,
+        counts,
+        width=widths,
         align="center",
         edgecolor="darkgrey",
         color="lightgrey",
-        label="Observed intervals"
+        label="Observed intervals",
     )
 
     # ECOFF marker
@@ -93,24 +94,20 @@ def plot_mic_distribution(
     x_values = np.linspace(global_x_min, global_x_max, 600)
 
     component_pdfs = [
-        pi * norm.pdf(x_values, mu, sigma)
-        for pi, mu, sigma in zip(pis, mus, sigmas)
+        pi * norm.pdf(x_values, mu, sigma) for pi, mu, sigma in zip(pis, mus, sigmas)
     ]
     mixture_pdf = np.sum(component_pdfs, axis=0)
 
     # Scale PDFs to histogram height
     scale = max(counts) / np.max(mixture_pdf)
 
-    for i, comp in enumerate(component_pdfs, start=1):
-        ax.plot(x_values, comp * scale, lw=2, label=f"Component {i}")
+    if len(component_pdfs) > 1:
+        for i, comp in enumerate(component_pdfs, start=1):
+            ax.plot(x_values, comp * scale, lw=2, label=f"Component {i}")
 
-    ax.plot(
-        x_values,
-        mixture_pdf * scale,
-        "k--",
-        lw=1.2,
-       label="Mixture"
-    )
+        ax.plot(x_values, mixture_pdf * scale, "k--", lw=1.2, label="Mixture")
+    else:
+        ax.plot(x_values, mixture_pdf * scale, "k--", lw=1.2, label="Model")
 
     # Labels
     ax.set_xlabel("log2(MIC)")

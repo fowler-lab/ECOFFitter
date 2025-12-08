@@ -110,7 +110,8 @@ class ECOFFitter:
 
         # single guassian
         model = IntReg(self.y_low_, self.y_high_, weights=self.weights_)
-        result = model.fit(method="L-BFGS-B", options=options)
+        model.fit(method="L-BFGS-B", options=options)
+        result = model.result
 
         self.model_ = model
         self.x = result.x

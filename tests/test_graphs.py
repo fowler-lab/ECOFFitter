@@ -34,8 +34,6 @@ def test_plot_mic_distribution_all_branches(mock_plt):
     ax1.bar.assert_called_once()
     # ECOFF vertical line used
     ax1.axvline.assert_called_once()
-    # Single component curve exists
-    assert any("Component 1" in str(c) for c in ax1.plot.call_args_list)
     # Tick relabeling (called at least once)
     assert ax1.set_xticklabels.called
 

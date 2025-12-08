@@ -145,8 +145,9 @@ class MixtureModel:
 
             for k in range(self.K):
                 w_k = self.weights * r[:, k]
-                fit_k = IntReg(self.y_low, self.y_high, weights=w_k).fit()
-                mu_k, log_sigma_k = fit_k.x
+                fit_k = IntReg(self.y_low, self.y_high, weights=w_k)
+                fit_k.fit()
+                mu_k, log_sigma_k = fit_k.result.x
                 new_mus[k] = mu_k
                 new_sigmas[k] = np.exp(log_sigma_k)
 

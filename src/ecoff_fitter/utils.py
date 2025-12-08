@@ -142,3 +142,93 @@ def read_params(params, dflt_dilution, dflt_dists, dflt_tails):
     percentile = params.get("percentile", None)
 
     return dilution_factor, distributions, tail_dilutions, percentile
+
+
+def read_multi_obs_input(data, sheet_name=None):
+    """
+    Read MIC input but allow multiple observation columns.
+    Returns a dict:
+        {
+            "global": df_global,             # aggregated observations
+            "individual": {col: df_col}      # one df per obs column
+        }
+
+    Each returned df has:
+        MIC (str)
+        observations (int)
+    """
+
+    # --- Load input similarly to original read_input() ---
+    if isinstance(data, pd.DataFrame):
+        df = data.copy()
+
+    elif isinstance(data, (list, tuple)):
+        df = pd.DataFrame({"MIC": data})
+
+    elif hasattr(data, "__array__"):
+        df = pd.DataFrame({"MIC": list(data)})
+
+    elif isinstance(data, dict):
+        df = pd.DataFrame.from_dict(data)
+
+    elif isinstance(data, str):
+        ext = os.path.splitext(data)[-1].lower()
+
+        if ext == ".csv":
+            df = pd.read_csv(data)
+        elif ext in [".tsv", ".txt"]:
+            df = pd.read_csv(data, sep=r"\s+")
+        elif ext in [".xlsx", ".xls"]:
+            df = pd.read_excel(data, sheet_name=sheet_name)
+        else:
+            raise ValueError(f"Unsupported file type: {ext}")
+
+    else:
+        raise ValueError("Input must be DataFrame, list, array, dict, or file path.")
+
+    # Normalize column names
+    df.columns = [str(c).strip() for c in df.columns]
+
+    # If only 1 column, fallback to old logic
+    if df.shape[1] == 1:
+        col = df.columns[0]
+        df["MIC"] = df[col].astype(str).str.strip()
+        df_single = (
+            df.groupby("MIC")
+              .size()
+              .reset_index(name="observations")
+        )
+        return {
+            "global": df_single,
+            "individual": {"observations": df_single.copy()}
+        }
+
+    # Require MIC column
+    if "MIC" not in df.columns:
+        raise ValueError("Input must contain a 'MIC' column.")
+
+    df["MIC"] = df["MIC"].astype(str).str.strip()
+
+    # Identify observation columns
+    obs_cols = [c for c in df.columns if c != "MIC"]
+
+    # Validate numeric obs columns
+    for col in obs_cols:
+        df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
+
+    # Build individual fitter DataFrames
+    individual = {}
+    for col in obs_cols:
+        subdf = df[["MIC", col]].copy()
+        subdf.rename(columns={col: "observations"}, inplace=True)
+        individual[col] = subdf
+
+    # Build global aggregated DataFrame
+    df_global = df[["MIC"]].copy()
+    df_global["observations"] = df[obs_cols].sum(axis=1).astype(int)
+
+    return {
+        "global": df_global,
+        "individual": individual
+    }
+

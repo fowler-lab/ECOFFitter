@@ -29,7 +29,7 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/DylanAdlard/ECOFFitter"
+Homepage = "https://github.com/fowler-lab/ECOFFitter"
 
 [project.scripts]
 ecoff-fitter = "ecoff_fitter.cli:main"
