@@ -17,15 +17,15 @@ class MixtureModel:
         3. Optional refinement using mixture likelihood via L-BFGS-B.
     """
 
-    y_low: NDArray[np.float_]
-    y_high: NDArray[np.float_]
-    weights: NDArray[np.float_]
+    y_low: NDArray[np.floating]
+    y_high: NDArray[np.floating]
+    weights: NDArray[np.floating]
 
-    mus: NDArray[np.float_]
-    sigmas: NDArray[np.float_]
-    pis: NDArray[np.float_]
+    mus: NDArray[np.floating]
+    sigmas: NDArray[np.floating]
+    pis: NDArray[np.floating]
 
-    x: NDArray[np.float_]
+    x: NDArray[np.floating]
     converged: bool
     n_iter: int
     loglike: float
@@ -33,9 +33,9 @@ class MixtureModel:
 
     def __init__(
         self,
-        y_low: NDArray[np.float_] | list[float],
-        y_high: NDArray[np.float_] | list[float],
-        weights: NDArray[np.float_] | list[float],
+        y_low: NDArray[np.floating] | list[float],
+        y_high: NDArray[np.floating] | list[float],
+        weights: NDArray[np.floating] | list[float],
         distributions: int,
     ) -> None:
         """
@@ -237,8 +237,8 @@ class MixtureModel:
         weights = np.asarray(self.weights, float)
 
         def unpack_params(
-            params: NDArray[np.float_],
-        ) -> Tuple[NDArray[np.float_], NDArray[np.float_], NDArray[np.float_]]:
+            params: NDArray[np.floating],
+        ) -> Tuple[NDArray[np.floating], NDArray[np.floating], NDArray[np.floating]]:
             """Convert flat parameter vector into mus, sigmas, pis."""
             mus = params[: self.K]
             sigmas = np.exp(params[self.K : 2 * self.K])
@@ -251,7 +251,7 @@ class MixtureModel:
 
             return mus, sigmas, pis
 
-        def neg_log_likelihood(params: NDArray[np.float_]) -> float:
+        def neg_log_likelihood(params: NDArray[np.floating]) -> float:
             mus, sigmas, pis = unpack_params(params)
 
             # P(interval | component k)

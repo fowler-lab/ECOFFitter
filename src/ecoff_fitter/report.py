@@ -52,15 +52,15 @@ class GenerateReport:
         return cast(float, self.fitter.dilution_factor)
 
     @property
-    def mus(self) -> NDArray[np.float_]:
-        return cast(NDArray[np.float_], self.fitter.mus_)
+    def mus(self) -> NDArray[np.floating]:
+        return cast(NDArray[np.floating], self.fitter.mus_)
 
     @property
-    def sigmas(self) -> NDArray[np.float_]:
-        return cast(NDArray[np.float_], self.fitter.sigmas_)
+    def sigmas(self) -> NDArray[np.floating]:
+        return cast(NDArray[np.floating], self.fitter.sigmas_)
 
     @property
-    def pis(self) -> Optional[NDArray[np.float_]]:
+    def pis(self) -> Optional[NDArray[np.floating]]:
         return getattr(self.fitter, "pis_", None)
 
     @property
@@ -71,12 +71,12 @@ class GenerateReport:
     @property
     def intervals(
         self,
-    ) -> tuple[NDArray[np.float_], NDArray[np.float_], NDArray[np.float_]]:
+    ) -> tuple[NDArray[np.floating], NDArray[np.floating], NDArray[np.floating]]:
         return cast(
             tuple[
-                NDArray[np.float_],
-                NDArray[np.float_],
-                NDArray[np.float_]
+                NDArray[np.floating],
+                NDArray[np.floating],
+                NDArray[np.floating]
             ],
             self.fitter.define_intervals(),
         )

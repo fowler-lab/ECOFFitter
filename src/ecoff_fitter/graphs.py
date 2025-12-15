@@ -7,13 +7,13 @@ from scipy.stats import norm
 
 
 def plot_mic_distribution(
-    low_log: NDArray[np.float_],
-    high_log: NDArray[np.float_],
-    weights: NDArray[np.float_],
+    low_log: NDArray[np.floating],
+    high_log: NDArray[np.floating],
+    weights: NDArray[np.floating],
     dilution_factor: float | int,
-    mus: NDArray[np.float_] | list[float],
-    sigmas: NDArray[np.float_] | list[float],
-    pis: Optional[NDArray[np.float_] | list[float]] = None,
+    mus: NDArray[np.floating] | list[float],
+    sigmas: NDArray[np.floating] | list[float],
+    pis: Optional[NDArray[np.floating] | list[float]] = None,
     log2_ecoff: Optional[float] = None,
     global_x_min: Optional[float] = None,
     global_x_max: Optional[float] = None,

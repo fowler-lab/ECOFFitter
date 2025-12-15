@@ -28,18 +28,18 @@ class ECOFFitter:
     """
 
     model_: IntReg | MixtureModel | None
-    x: NDArray[np.float_]
-    mus_: NDArray[np.float_]
-    sigmas_: NDArray[np.float_]
-    pis_: NDArray[np.float_]
+    x: NDArray[np.floating]
+    mus_: NDArray[np.floating]
+    sigmas_: NDArray[np.floating]
+    pis_: NDArray[np.floating]
     loglike_: float
     converged_: bool
     n_iter_: int | None
     ecoff_: float
     z_percentile_: float
-    y_low_: NDArray[np.float_]
-    y_high_: NDArray[np.float_]
-    weights_: NDArray[np.float_]
+    y_low_: NDArray[np.floating]
+    y_high_: NDArray[np.floating]
+    weights_: NDArray[np.floating]
 
     def __init__(
         self,
@@ -177,7 +177,7 @@ class ECOFFitter:
 
     def define_intervals(
         self, df: Optional[pd.DataFrame] = None
-    ) -> Tuple[NDArray[np.float_], NDArray[np.float_], NDArray[np.float_]]:
+    ) -> Tuple[NDArray[np.floating], NDArray[np.floating], NDArray[np.floating]]:
         """
         Construct MIC interval bounds and apply left-, right-, and interval-
         censoring rules, then transform to log dilution space.
@@ -232,8 +232,8 @@ class ECOFFitter:
         return y_low_log, y_high_log, weights
 
     def log_transf_intervals(
-        self, y_low: NDArray[np.float_], y_high: NDArray[np.float_]
-    ) -> Tuple[NDArray[np.float_], NDArray[np.float_]]:
+        self, y_low: NDArray[np.floating], y_high: NDArray[np.floating]
+    ) -> Tuple[NDArray[np.floating], NDArray[np.floating]]:
         """
         Transform interval bounds into log base–dilution_factor space.
 
