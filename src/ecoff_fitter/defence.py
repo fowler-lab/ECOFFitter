@@ -1,9 +1,11 @@
 import pandas as pd
+from typing import Any
+from pandas import DataFrame
 import os
 import re
 
 
-def validate_input_source(input):
+def validate_input_source(input: str | DataFrame | dict[str, Any]) -> None:
     """
     Validate the input source for ECOFFitter.
 
@@ -32,7 +34,9 @@ def validate_input_source(input):
         raise ValueError("Input must be a pandas DataFrame or a valid file path.")
 
 
-def validate_params_source(params):
+def validate_params_source(
+    params: dict[str, Any] | str | list[Any] | tuple[Any, ...] | DataFrame | Any | None,
+) -> None:
     """
     Pre-validate the params argument before attempting to read it.
 
@@ -69,8 +73,7 @@ def validate_params_source(params):
     )
 
 
-
-def validate_mic_data(df):
+def validate_mic_data(df: DataFrame) -> None:
     """
     Validate MIC and observations columns.
 
@@ -97,7 +100,9 @@ def validate_mic_data(df):
         raise ValueError(f"Invalid MIC format found in rows: {bad_rows.index.tolist()}")
 
 
-def validate_params(dilution_factor, distributions, boundary_support):
+def validate_params(
+    dilution_factor: int, distributions: int, boundary_support: int | None
+) -> None:
     """
     Validate ECOFFitter configuration values.
 
@@ -112,15 +117,16 @@ def validate_params(dilution_factor, distributions, boundary_support):
 
     if not isinstance(dilution_factor, int) or dilution_factor <= 1:
         raise ValueError("dilution_factor must be an integer > 1.")
-    
+
     if not isinstance(distributions, int):
-        raise NotImplementedError("The number of mixture components must be an integer.")
-    
+        raise NotImplementedError(
+            "The number of mixture components must be an integer."
+        )
+
     if boundary_support is not None and (
         not isinstance(boundary_support, int) or boundary_support < 0
     ):
         raise ValueError("boundary_support must be a non-negative integer or None.")
-
 
 
 def validate_output_path(path: str) -> bool:
@@ -130,11 +136,11 @@ def validate_output_path(path: str) -> bool:
     Returns True if valid, otherwise raises ValueError.
     """
     # Check extension
-    allowed_exts = ('.txt', '.pdf')
+    allowed_exts = (".txt", ".pdf")
     if not path.lower().endswith(allowed_exts):
         raise ValueError(f"File must end with {allowed_exts}, got '{path}'")
 
-    directory = os.path.dirname(path) or '.'
+    directory = os.path.dirname(path) or "."
 
     if not os.path.exists(directory):
         raise ValueError(f"Directory does not exist: {directory}")
@@ -143,4 +149,3 @@ def validate_output_path(path: str) -> bool:
         raise PermissionError(f"No write permission in directory: {directory}")
 
     return True
-

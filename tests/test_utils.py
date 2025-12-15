@@ -114,8 +114,8 @@ def test_read_params_dict():
     # Defaults respected
     assert tails is None
 
-    #check default percentile = None from parser
-    assert percentile is None
+    #check default percentile = 99 from parser
+    assert percentile == 99
 
 
 def test_read_params_txt_invalid_format(tmp_path):
