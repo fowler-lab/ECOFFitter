@@ -65,7 +65,7 @@ or
 
 A single column/array of observed MIC values.
 
-#### Example (from `demo_files/input.txt`)
+#### Example (from `demo_files/censored.txt`)
 
 ```text
 MIC     observations
@@ -147,7 +147,7 @@ Once installed, you can call the CLI.
 Example using demo files:
 
 ```bash
-ecoffitter   --input demo_files/input.txt   --params demo_files/params.txt   --outfile demo_files/output.txt
+ecoffitter   --input demo_files/censored.txt   --params demo_files/params.txt   --outfile demo_files/output.txt
 ```
 
 Instead of using a parameter file, you can also specify parameters directly.
