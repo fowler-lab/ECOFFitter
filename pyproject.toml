@@ -66,4 +66,4 @@ implicit_reexport = true
 exclude = "src/ecoff_fitter/wts.py"
 
 [project.optional-dependencies]
-dev = ["mypy", "pandas-stubs", "types-PyYAML", "numpy-stubs", "scipy-stubs"]
+dev = ["mypy", "pandas-stubs", "types-PyYAML",  "scipy-stubs"]
