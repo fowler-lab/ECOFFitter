@@ -21,7 +21,7 @@ Demo input files are provided in `demo_files/` to illustrate basic use.
 
 ---
 
-## 📦 Installation
+## 🛠 Installation
 
 ### Install from PyPI
 
@@ -35,25 +35,6 @@ Assuming in project directory:
 
 ```bash
 pip install -e .
-```
-
----
-
-## 🛠 Creating the Environment
-
-### Conda environment (env.yml)
-
-```bash
-conda env create -f env.yml
-conda activate ECOFFitter
-```
-
-### Pip environment (requirements.txt)
-
-```bash
-python -m venv ecoff-env
-source ecoff-env/bin/activate
-pip install -r requirements.txt
 ```
 
 ---

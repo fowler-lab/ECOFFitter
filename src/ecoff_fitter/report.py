@@ -1,5 +1,7 @@
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Tuple, Optional, Dict, cast
+from matplotlib.figure import Figure
+from numpy.typing import NDArray
 import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
 from ecoff_fitter.graphs import plot_mic_distribution
@@ -15,12 +17,12 @@ class GenerateReport:
     avoiding duplication of distributions, mus, sigmas, intervals, etc.
     """
 
-    fitter: Any            # The ECOFFitter used to generate the results
-    ecoff: float           # ECOFF value
-    z: tuple               # Percentile-based ECOFFs (99, 97.5, 95)
+    fitter: Any
+    ecoff: float
+    z: Tuple[float, float, float]  # Percentile-based ECOFFs (99, 97.5, 95)
 
     @classmethod
-    def from_fitter(cls, fitter, result):
+    def from_fitter(cls, fitter: Any, result: Tuple[Any, ...]) -> "GenerateReport":
         """
         Construct a GenerateReport from an ECOFFitter and generate() output.
 
@@ -33,7 +35,7 @@ class GenerateReport:
         z1 = fitter.compute_ecoff(percentile=97.5)[0]
         z2 = fitter.compute_ecoff(percentile=95)[0]
 
-        ecoff = result[0]    # first element always ECOFF
+        ecoff = result[0]  # first element always ECOFF
 
         return cls(
             fitter=fitter,
@@ -42,34 +44,44 @@ class GenerateReport:
         )
 
     @property
-    def distributions(self):
-        return self.fitter.distributions
+    def distributions(self) -> int:
+        return cast(int, self.fitter.distributions)
 
     @property
-    def dilution_factor(self):
-        return self.fitter.dilution_factor
+    def dilution_factor(self) -> float:
+        return cast(float, self.fitter.dilution_factor)
 
     @property
-    def mus(self):
-        return self.fitter.mus_
+    def mus(self) -> NDArray[np.floating]:
+        return cast(NDArray[np.floating], self.fitter.mus_)
 
     @property
-    def sigmas(self):
-        return self.fitter.sigmas_
-    
+    def sigmas(self) -> NDArray[np.floating]:
+        return cast(NDArray[np.floating], self.fitter.sigmas_)
+
     @property
-    def pis(self):
+    def pis(self) -> Optional[NDArray[np.floating]]:
         return getattr(self.fitter, "pis_", None)
 
     @property
-    def model(self):
+    def model(self) -> Any:
         return getattr(self.fitter, "model_", None)
 
-    @property
-    def intervals(self):
-        return self.fitter.define_intervals()
 
-    def print_stats(self, verbose=False):
+    @property
+    def intervals(
+        self,
+    ) -> tuple[NDArray[np.floating], NDArray[np.floating], NDArray[np.floating]]:
+        return cast(
+            tuple[
+                NDArray[np.floating],
+                NDArray[np.floating],
+                NDArray[np.floating]
+            ],
+            self.fitter.define_intervals(),
+        )
+
+    def print_stats(self, verbose: bool = False) -> None:
         print(f"\nECOFF (original scale): {self.ecoff:.2}")
 
         if self.distributions == 1:
@@ -80,15 +92,16 @@ class GenerateReport:
         else:
             print("\nComponent means and sigmas (original scale):")
             for i, (mu, sigma) in enumerate(zip(self.mus, self.sigmas), start=1):
-                print(f"  μ{i}: {self.dilution_factor**mu:.4f}, "
-                      f"σ{i} (folds): {self.dilution_factor**sigma:.4f}")
+                print(
+                    f"  μ{i}: {self.dilution_factor**mu:.4f}, "
+                    f"σ{i} (folds): {self.dilution_factor**sigma:.4f}"
+                )
 
         if verbose and self.model is not None:
             print("\n--- Model details ---")
             print(self.model)
 
-
-    def write_out(self, path: str):
+    def write_out(self, path: str) -> None:
         z0, z1, z2 = self.z
 
         with open(path, "w") as f:
@@ -113,8 +126,7 @@ class GenerateReport:
 
         print(f"\nResults saved to: {path}")
 
-
-    def save_pdf(self, outfile: str):
+    def save_pdf(self, outfile: str) -> None:
         with PdfPages(outfile) as pdf:
             fig = self._make_pdf()
             pdf.savefig(fig)
@@ -122,11 +134,9 @@ class GenerateReport:
 
         print(f"PDF report saved to: {outfile}")
 
-
-    def _make_pdf(self, title=None):
+    def _make_pdf(self, title: Optional[str] = None) -> Figure:
         fig, (ax_plot, ax_text) = plt.subplots(
-            nrows=1, ncols=2, figsize=(10, 4),
-            gridspec_kw={"width_ratios": [2, 1]}
+            nrows=1, ncols=2, figsize=(10, 4), gridspec_kw={"width_ratios": [2, 1]}
         )
 
         low_log, high_log, weights = self.intervals
@@ -173,21 +183,26 @@ class GenerateReport:
                 )
 
         ax_text.text(
-            0.05, 0.9,
+            0.05,
+            0.9,
             "\n".join(lines),
             fontsize=11,
             va="top",
             family="monospace",
         )
 
-        fig.tight_layout(rect=[0, 0, 1, 0.95])
+        fig.tight_layout(rect=(0, 0, 1, 0.95))
 
         return fig
 
 
-
 class CombinedReport:
-    def __init__(self, outfile, global_report, individual_reports):
+    def __init__(
+        self,
+        outfile: str,
+        global_report: GenerateReport,
+        individual_reports: Dict[str, GenerateReport],
+    ) -> None:
         """
         outfile: PDF filename
         global_report: GenerateReport instance
@@ -197,7 +212,7 @@ class CombinedReport:
         self.global_report = global_report
         self.individual_reports = individual_reports
 
-    def save_pdf(self):
+    def save_pdf(self) -> None:
         from matplotlib.backends.backend_pdf import PdfPages
 
         with PdfPages(self.outfile) as pdf:

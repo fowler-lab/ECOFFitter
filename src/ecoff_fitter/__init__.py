@@ -1,3 +1,6 @@
+from typing import Callable
+
+
 """
 ECOFF Fitter — Estimate epidemiological cutoff values (ECOFFs)
 using interval regression on MIC (Minimum Inhibitory Concentration) data.
@@ -16,7 +19,7 @@ from importlib.metadata import version, PackageNotFoundError
 # --- Public API imports ---
 from .core import ECOFFitter
 
-__all__ = ["ECOFFitter"]
+__all__: list[str] = ["ECOFFitter"]
 
 # --- Optional: version handling ---
 try:
@@ -25,7 +28,7 @@ except PackageNotFoundError:
     __version__ = "0.0.0"
 
 # --- Optional: CLI hook for `python -m ecoff_fitter` ---
-def main():
+def main() -> None:
     """Entry point for running ecoff_fitter as a module (CLI)."""
     from .cli import main as cli_main
     cli_main()

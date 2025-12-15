@@ -1,4 +1,7 @@
 import numpy as np
+from typing import Any, Optional, Tuple
+import pandas as pd
+from numpy.typing import NDArray
 from scipy.stats import norm
 from intreg.intreg import IntReg
 from ecoff_fitter.utils import read_input, read_params
@@ -24,14 +27,28 @@ class ECOFFitter:
     (wild-type) component at the given percentile.
     """
 
+    model_: IntReg | MixtureModel | None
+    x: NDArray[np.floating]
+    mus_: NDArray[np.floating]
+    sigmas_: NDArray[np.floating]
+    pis_: NDArray[np.floating]
+    loglike_: float
+    converged_: bool
+    n_iter_: int | None
+    ecoff_: float
+    z_percentile_: float
+    y_low_: NDArray[np.floating]
+    y_high_: NDArray[np.floating]
+    weights_: NDArray[np.floating]
+
     def __init__(
         self,
-        input,
-        params: dict | str | None = None,
+        input: pd.DataFrame | str,
+        params: dict[str, Any] | str | None = None,
         dilution_factor: int = 2,
         distributions: int = 1,
         boundary_support: int | None = 1,
-    ):
+    ) -> None:
         """
         Initialize the ECOFFitter.
 
@@ -75,7 +92,7 @@ class ECOFFitter:
         self.distributions = distributions
         self.boundary_support = boundary_support
 
-    def fit(self, options={}):
+    def fit(self, options: dict[str, Any] | None = None) -> "ECOFFitter":
         """
         Define MIC intervals and fit either a single censored-normal model
         or a finite mixture model.
@@ -96,7 +113,7 @@ class ECOFFitter:
             # multiple gaussians
             return self.fit_mixture(options)
 
-    def fit_single(self, options=None):
+    def fit_single(self, options: dict[str, Any] | None = None) -> "ECOFFitter":
         """
         Fit a single-component censored normal distribution using interval
         regression.
@@ -122,7 +139,9 @@ class ECOFFitter:
         self.converged_ = result.success
         self.n_iter_ = result.nit if hasattr(result, "nit") else None
 
-    def fit_mixture(self, options=None):
+        return self
+
+    def fit_mixture(self, options: dict[str, Any] | None = None) -> "ECOFFitter":
         """
         Fit a K-component finite mixture of censored normals using the EM
         algorithm followed by optional refinement.
@@ -156,7 +175,9 @@ class ECOFFitter:
 
         return self
 
-    def define_intervals(self, df=None):
+    def define_intervals(
+        self, df: Optional[pd.DataFrame] = None
+    ) -> Tuple[NDArray[np.floating], NDArray[np.floating], NDArray[np.floating]]:
         """
         Construct MIC interval bounds and apply left-, right-, and interval-
         censoring rules, then transform to log dilution space.
@@ -210,7 +231,9 @@ class ECOFFitter:
 
         return y_low_log, y_high_log, weights
 
-    def log_transf_intervals(self, y_low, y_high):
+    def log_transf_intervals(
+        self, y_low: NDArray[np.floating], y_high: NDArray[np.floating]
+    ) -> Tuple[NDArray[np.floating], NDArray[np.floating]]:
         """
         Transform interval bounds into log base–dilution_factor space.
 
@@ -231,7 +254,9 @@ class ECOFFitter:
 
         return y_low_log, y_high_log
 
-    def generate(self, percentile: int | float = 99, options={}):
+    def generate(
+        self, percentile: int | float = 99, options: dict[str, Any] | None = None
+    ) -> Tuple[Any, ...]:
         """
         Fit the model and compute the ECOFF at a specified percentile.
 
@@ -253,7 +278,7 @@ class ECOFFitter:
 
         return results
 
-    def compute_ecoff(self, percentile: float):
+    def compute_ecoff(self, percentile: float) -> Tuple[Any, ...]:
         """
         Compute the ECOFF and percentile location from the fitted model.
 

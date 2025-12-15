@@ -7,6 +7,7 @@ Usage example:
 """
 
 import argparse
+from typing import Any, List, Optional
 from ecoff_fitter import ECOFFitter
 from ecoff_fitter.report import GenerateReport
 from ecoff_fitter.defence import validate_output_path
@@ -74,7 +75,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv=None):
+def main(argv: Optional[List[str]] = None) -> None:
     """Main entry point for the ECOFFitter CLI."""
     parser = build_parser()
     args = parser.parse_args(argv)

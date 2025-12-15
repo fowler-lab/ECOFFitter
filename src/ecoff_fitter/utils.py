@@ -1,9 +1,15 @@
+from typing import Any, Dict, List, Tuple, Optional, cast
 import pandas as pd
+from pandas import DataFrame
+from numpy.typing import NDArray
 import yaml
 import os
 
 
-def read_input(data, sheet_name=None):
+def read_input(
+    data: DataFrame | list[Any] | tuple[Any, ...] | dict[str, Any] | str,
+    sheet_name: Optional[str] = None,
+) -> DataFrame:
     """
     Read MIC input data from a DataFrame, array-like, dict, or file
     and validate required columns. If given a single-column input,
@@ -36,25 +42,26 @@ def read_input(data, sheet_name=None):
         elif ext in [".tsv", ".txt"]:
             df = pd.read_csv(data, sep=r"\s+")
         elif ext in [".xlsx", ".xls"]:
-            df = pd.read_excel(data, sheet_name=sheet_name)
+            val = pd.read_excel(data, sheet_name=sheet_name)
+            if isinstance(val, dict):
+                # choose a sheet, or raise error
+                df = next(iter(val.values()))   # first sheet
+            else:
+                df = val
         else:
             raise ValueError(f"Unsupported file type: {ext}")
 
     else:
         raise ValueError("Input must be DataFrame, list, array, dict, or file path.")
-
+    
     df.columns = [str(c).strip() for c in df.columns]
 
     # Handle single-column input automatically
     if df.shape[1] == 1:
         col = df.columns[0]
         df["MIC"] = df[col].astype(str).str.strip()
-        
-        df = (
-            df.groupby("MIC")
-            .size()
-            .reset_index(name="observations")
-        )
+
+        df = df.groupby("MIC").size().reset_index(name="observations")
 
     expected = ["MIC", "observations"]
     missing = [c for c in expected if c not in df.columns]
@@ -67,15 +74,19 @@ def read_input(data, sheet_name=None):
 
     df["MIC"] = df["MIC"].astype(str).str.strip()
     df["observations"] = (
-        pd.to_numeric(df["observations"], errors="coerce")
-        .fillna(0)
-        .astype(int)
+        pd.to_numeric(df["observations"], errors="coerce").fillna(0).astype(int)
     )
 
     df = df.dropna(subset=["MIC"]).reset_index(drop=True)
     return df
 
-def read_params(params, dflt_dilution, dflt_dists, dflt_tails):
+
+def read_params(
+    params: str | dict[str, Any],
+    dflt_dilution: int,
+    dflt_dists: int,
+    dflt_tails: Optional[int],
+) -> Tuple[int, int, Optional[int], float]:
     """
     Read ECOFF model parameters from a file or dictionary, falling back to provided defaults.
 
@@ -106,7 +117,8 @@ def read_params(params, dflt_dilution, dflt_dists, dflt_tails):
                 params = yaml.safe_load(f) or {}
 
         elif ext == ".txt":
-            parsed = {}
+
+            parsed: Dict[str, Any] = {}
             with open(params, "r") as f:
                 for line in f:
                     line = line.strip()
@@ -139,12 +151,16 @@ def read_params(params, dflt_dilution, dflt_dists, dflt_tails):
     dilution_factor = params.get("dilution_factor", dflt_dilution)
     distributions = params.get("distributions", dflt_dists)
     boundary_support = params.get("boundary_support", dflt_tails)
-    percentile = params.get("percentile", None)
+    percentile = params.get("percentile", 99)
 
     return dilution_factor, distributions, boundary_support, percentile
 
 
-def read_multi_obs_input(data, sheet_name=None):
+def read_multi_obs_input(
+    data: DataFrame | list[Any] | tuple[Any, ...] | dict[str, Any] | Any | str,
+    sheet_name: Optional[str] = None,
+) -> Dict[str, Any]:
+
     """
     Read MIC input but allow multiple observation columns.
     Returns a dict:
@@ -179,7 +195,12 @@ def read_multi_obs_input(data, sheet_name=None):
         elif ext in [".tsv", ".txt"]:
             df = pd.read_csv(data, sep=r"\s+")
         elif ext in [".xlsx", ".xls"]:
-            df = pd.read_excel(data, sheet_name='Sheet1')
+            val = pd.read_excel(data, sheet_name=sheet_name)
+            if isinstance(val, dict):
+                # choose a sheet, or raise error
+                df = next(iter(val.values()))   # first sheet
+            else:
+                df = val
         else:
             raise ValueError(f"Unsupported file type: {ext}")
 
@@ -193,15 +214,9 @@ def read_multi_obs_input(data, sheet_name=None):
     if df.shape[1] == 1:
         col = df.columns[0]
         df["MIC"] = df[col].astype(str).str.strip()
-        df_single = (
-            df.groupby("MIC")
-              .size()
-              .reset_index(name="observations")
-        )
-        return {
-            "global": df_single,
-            "individual": {"observations": df_single.copy()}
-        }
+        df_single = df.groupby("MIC").size().reset_index(name="observations")
+        return cast(Dict[str, Any], {"global": df_single, "individual": {"observations": df_single.copy()}})
+
 
     # Require MIC column
     if "MIC" not in df.columns:
@@ -227,8 +242,4 @@ def read_multi_obs_input(data, sheet_name=None):
     df_global = df[["MIC"]].copy()
     df_global["observations"] = df[obs_cols].sum(axis=1).astype(int)
 
-    return {
-        "global": df_global,
-        "individual": individual
-    }
-
+    return {"global": df_global, "individual": individual}

@@ -1,21 +1,24 @@
 import numpy as np
+from typing import Optional
+from numpy.typing import NDArray
+import matplotlib.axes
 import matplotlib.pyplot as plt
 from scipy.stats import norm
 
 
 def plot_mic_distribution(
-    low_log,
-    high_log,
-    weights,
-    dilution_factor,
-    mus,
-    sigmas,
-    pis=None,
-    log2_ecoff=None,
-    global_x_min=None,
-    global_x_max=None,
-    ax=None,
-):
+    low_log: NDArray[np.floating],
+    high_log: NDArray[np.floating],
+    weights: NDArray[np.floating],
+    dilution_factor: float | int,
+    mus: NDArray[np.floating] | list[float],
+    sigmas: NDArray[np.floating] | list[float],
+    pis: Optional[NDArray[np.floating] | list[float]] = None,
+    log2_ecoff: Optional[float] = None,
+    global_x_min: Optional[float] = None,
+    global_x_max: Optional[float] = None,
+    ax: Optional[matplotlib.axes.Axes] = None,
+) -> matplotlib.axes.Axes:
     """
     Plot MIC intervals with a K-component Gaussian mixture fit.
     Supports left- and right-censoring with visual tail extensions.

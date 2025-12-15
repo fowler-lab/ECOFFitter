@@ -1,4 +1,6 @@
 import numpy as np
+from typing import Optional, Tuple
+from numpy.typing import NDArray
 from intreg.intreg import IntReg
 from sklearn.cluster import KMeans
 from scipy.optimize import minimize
@@ -15,7 +17,27 @@ class MixtureModel:
         3. Optional refinement using mixture likelihood via L-BFGS-B.
     """
 
-    def __init__(self, y_low, y_high, weights, distributions):
+    y_low: NDArray[np.floating]
+    y_high: NDArray[np.floating]
+    weights: NDArray[np.floating]
+
+    mus: NDArray[np.floating]
+    sigmas: NDArray[np.floating]
+    pis: NDArray[np.floating]
+
+    x: NDArray[np.floating]
+    converged: bool
+    n_iter: int
+    loglike: float
+    params_: dict[str, float]
+
+    def __init__(
+        self,
+        y_low: NDArray[np.floating] | list[float],
+        y_high: NDArray[np.floating] | list[float],
+        weights: NDArray[np.floating] | list[float],
+        distributions: int,
+    ) -> None:
         """
         Initialise a K-component mixture model using K-means clustering.
 
@@ -39,14 +61,14 @@ class MixtureModel:
 
         # Find finite bounds
         finite_high = np.max(y_high[np.isfinite(y_high)])
-        finite_low  = np.min(y_low[np.isfinite(y_low)])
+        finite_low = np.min(y_low[np.isfinite(y_low)])
 
         # KMeans cannot handle inf → substitute only for midpoint computation
-        y_low_km  = y_low.copy()
+        y_low_km = y_low.copy()
         y_high_km = y_high.copy()
 
         y_high_km[np.isinf(y_high_km)] = finite_high + 1.0
-        y_low_km[np.isinf(y_low_km)]   = finite_low - 1.0
+        y_low_km[np.isinf(y_low_km)] = finite_low - 1.0
 
         mid = (y_low_km + y_high_km) / 2
         mid_reshaped = mid.reshape(-1, 1)
@@ -56,7 +78,6 @@ class MixtureModel:
             n_init="auto",
             random_state=0,
         ).fit(mid_reshaped, sample_weight=weights)
-
 
         # Cluster centres → initial mus
         mus = kmeans.cluster_centers_.flatten()
@@ -84,7 +105,9 @@ class MixtureModel:
         self.y_low, self.y_high, self.weights = y_low, y_high, weights
         self.mus, self.sigmas, self.pis = mus, sigmas, pis
 
-    def fit(self, max_iter=500, tol=1e-6, refine=True):
+    def fit(
+        self, max_iter: int = 500, tol: float = 1e-6, refine: bool = True
+    ) -> "MixtureModel":
         """
         Fit the mixture model using EM and optional refinement.
 
@@ -105,7 +128,7 @@ class MixtureModel:
 
         return self
 
-    def em(self, max_iter=500, tol=1e-6):
+    def em(self, max_iter: int = 500, tol: float = 1e-6) -> "MixtureModel":
         """
         Expectation–Maximization (EM) algorithm for a K-component mixture
         of interval-censored normal distributions.
@@ -197,7 +220,7 @@ class MixtureModel:
 
         return self
 
-    def refine_mixture(self):
+    def refine_mixture(self) -> "MixtureModel":
         """
         Refinement step for a general K-component mixture model using L-BFGS-B.
 
@@ -213,7 +236,9 @@ class MixtureModel:
         y_high = np.asarray(self.y_high, float)
         weights = np.asarray(self.weights, float)
 
-        def unpack_params(params):
+        def unpack_params(
+            params: NDArray[np.floating],
+        ) -> Tuple[NDArray[np.floating], NDArray[np.floating], NDArray[np.floating]]:
             """Convert flat parameter vector into mus, sigmas, pis."""
             mus = params[: self.K]
             sigmas = np.exp(params[self.K : 2 * self.K])
@@ -226,7 +251,7 @@ class MixtureModel:
 
             return mus, sigmas, pis
 
-        def neg_log_likelihood(params):
+        def neg_log_likelihood(params: NDArray[np.floating]) -> float:
             mus, sigmas, pis = unpack_params(params)
 
             # P(interval | component k)
@@ -241,7 +266,7 @@ class MixtureModel:
             mix = p_mat @ pis
             mix = np.clip(mix, 1e-300, np.inf)
 
-            return -np.sum(weights * np.log(mix))
+            return float(-np.sum(weights * np.log(mix)))
 
         res = minimize(neg_log_likelihood, self.x, method="L-BFGS-B")
         self.x = res.x
