@@ -3,10 +3,6 @@ from unittest.mock import MagicMock
 import ecoff_fitter.cli as cli
 
 
-# ------------------------------------------------------------
-# Fixtures that safely isolate CLI from real dependencies
-# ------------------------------------------------------------
-
 @pytest.fixture
 def mock_loader(monkeypatch):
     """
@@ -48,10 +44,6 @@ def mock_validate(monkeypatch):
     return mock
 
 
-# ------------------------------------------------------------
-# Parser tests
-# ------------------------------------------------------------
-
 def test_parser_accepts_basic_args():
     parser = cli.build_parser()
     args = parser.parse_args(["--input", "data.csv", "--percentile", "95"])
@@ -83,3 +75,38 @@ def test_main_outfile_txt(mock_loader, mock_fitter, mock_report, mock_validate):
 def test_main_outfile_pdf(mock_loader, mock_fitter, mock_report, mock_validate):
     cli.main(["--input", "fake.csv", "--outfile", "report.pdf"])
     mock_validate.assert_called_once_with("report.pdf")
+
+
+def test_main_runs_with_multiple_individuals(monkeypatch, mock_fitter, mock_report, mock_validate):
+    """
+    Ensure the CLI runs when multiple individual datasets are present
+    and that CombinedReport is invoked.
+    """
+
+    # Make two fake individual datasets
+    fake_global = MagicMock()
+    fake_indiv1 = MagicMock()
+    fake_indiv2 = MagicMock()
+
+    def fake_loader(path):
+        return {
+            "global": fake_global,
+            "individual": {
+                "A": fake_indiv1,
+                "B": fake_indiv2,
+            },
+        }
+
+    monkeypatch.setattr(cli, "read_multi_obs_input", fake_loader)
+
+    # Mock CombinedReport so we can detect when it's used
+    combined_instance = MagicMock()
+    combined_cls = MagicMock(return_value=combined_instance)
+    monkeypatch.setattr(cli, "CombinedReport", combined_cls)
+
+    cli.main(["--input", "fake.csv", "--outfile", "combined.pdf"])
+
+    mock_validate.assert_called_once_with("combined.pdf")
+
+    combined_cls.assert_called_once()
+    combined_instance.save_pdf.assert_called_once()

@@ -214,3 +214,45 @@ def test_generate_report_to_text_two_dist_verbose():
     assert "Component 2" in text
     assert "--- Model details ---" in text
     assert "FAKE_MODEL_DETAILS" in text
+
+def test_combined_report_write_out(tmp_path):
+    # Create output file path
+    path = tmp_path / "combined.txt"
+
+    # Mock global and individual GenerateReport instances
+    global_report = MagicMock()
+    global_report.to_text.return_value = "GLOBAL TEXT\n"
+
+    report_A = MagicMock()
+    report_A.to_text.return_value = "REPORT A TEXT\n"
+
+    report_B = MagicMock()
+    report_B.to_text.return_value = "REPORT B TEXT\n"
+
+    # Build CombinedReport
+    combined = report.CombinedReport(
+        outfile="dummy.pdf",
+        global_report=global_report,
+        individual_reports={
+            "A": report_A,
+            "B": report_B,
+        },
+    )
+
+    # Act
+    combined.write_out(str(path))
+
+    text = path.read_text()
+
+    assert "===== GLOBAL FIT =====" in text
+    assert "GLOBAL TEXT" in text
+
+    assert "===== INDIVIDUAL FIT: A =====" in text
+    assert "REPORT A TEXT" in text
+
+    assert "===== INDIVIDUAL FIT: B =====" in text
+    assert "REPORT B TEXT" in text
+
+    global_report.to_text.assert_called_with(label="GLOBAL FIT")
+    report_A.to_text.assert_called_with(label="A")
+    report_B.to_text.assert_called_with(label="B")

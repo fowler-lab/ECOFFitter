@@ -177,7 +177,6 @@ class GenerateReport:
         return fig
 
 
-
 class CombinedReport:
     def __init__(
         self,
@@ -186,13 +185,40 @@ class CombinedReport:
         individual_reports: Dict[str, GenerateReport],
     ) -> None:
         """
-        outfile: PDF filename
+        outfile: PDF filename (for save_pdf)
         global_report: GenerateReport instance
         individual_reports: dict {column_name: GenerateReport}
         """
         self.outfile = outfile
         self.global_report = global_report
         self.individual_reports = individual_reports
+
+    def write_out(self, path: str) -> None:
+        """
+        Write a consolidated text report containing:
+        - Global fit summary
+        - Individual fit summaries
+
+        Uses GenerateReport.to_text() for formatting consistency.
+        """
+        lines: list[str] = []
+
+        # ----- GLOBAL REPORT -----
+        lines.append("===== GLOBAL FIT =====")
+        lines.append(self.global_report.to_text(label="GLOBAL FIT"))
+
+        # ----- INDIVIDUAL REPORTS -----
+        for name, report in self.individual_reports.items():
+            lines.append(f"\n===== INDIVIDUAL FIT: {name} =====")
+            lines.append(report.to_text(label=name))
+
+        # Join and write file
+        text = "\n".join(lines)
+
+        with open(path, "w") as f:
+            f.write(text)
+
+        print(f"\nCombined text report saved to: {path}")
 
     def save_pdf(self) -> None:
         from matplotlib.backends.backend_pdf import PdfPages
@@ -209,5 +235,7 @@ class CombinedReport:
                 fig = report._make_pdf(title=f"INDIVIDUAL FIT: {name}")
                 pdf.savefig(fig)
                 plt.close(fig)
+
+        print(f"Combined PDF saved to {self.outfile}")
 
         print(f"Combined PDF saved to {self.outfile}")

@@ -5,9 +5,7 @@ import pandas as pd
 from ecoff_fitter import ECOFFitter
 
 
-# ============================================================
 #  __init__.py AND PACKAGE IMPORT TESTS
-# ============================================================
 
 def test_ecoffitter_importable_from_root():
     """Package root must expose ECOFFitter."""
@@ -30,9 +28,7 @@ def test_main_invokes_cli(monkeypatch):
     assert called["hit"] is True
 
 
-# ============================================================
 #  DATA FIXTURES
-# ============================================================
 
 @pytest.fixture
 def simple_data():
@@ -50,9 +46,9 @@ def censored_data():
     })
 
 
-# ============================================================
+
 #  INITIALIZATION
-# ============================================================
+
 
 def test_init_with_dataframe(simple_data):
     fitter = ECOFFitter(simple_data, dilution_factor=2, distributions=1)
@@ -62,9 +58,7 @@ def test_init_with_dataframe(simple_data):
     assert "observations" in fitter.obj_df.columns
 
 
-# ============================================================
 #  INTERVAL CONSTRUCTION
-# ============================================================
 
 def test_define_intervals_uncensored(simple_data):
     fitter = ECOFFitter(simple_data)
