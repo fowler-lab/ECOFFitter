@@ -142,9 +142,9 @@ def main(argv: Optional[List[str]] = None) -> None:
                 # Build combined PDF
                 combined = CombinedReport(args.outfile, global_report, indiv_reports)
                 if args.outfile.endswith(".pdf"):
-                    combined.save_pdf(args.outfile)
+                    combined.save_pdf()
                 else:
-                    combined.write_out(args.outfile)
+                    combined.write_out()
 
         print (text)
 

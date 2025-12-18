@@ -162,13 +162,12 @@ class ECOFFGUI:
 
             text = "ECOFF RESULTS\n=====================================\n\n"
 
+            global_report = GenerateReport.from_fitter(global_fitter, global_result)
             if len(individual_results) > 1:
-                global_report = GenerateReport.from_fitter(global_fitter, global_result)
+                
                 text += global_report.to_text("GLOBAL FIT")
                 text += "\nINDIVIDUAL FITS:\n-------------------------------------\n"
 
-            else:
-                global_report = GenerateReport.from_fitter(global_fitter, global_result)
 
             # Individual fits
             for name, (fitter, result) in individual_results.items():
@@ -177,8 +176,8 @@ class ECOFFGUI:
 
 
             if outfile:
+                validate_output_path(outfile)
                 if len(individual_results.keys())==1:
-                    validate_output_path(outfile)
                     if outfile.endswith(".pdf"):
                         global_report.save_pdf(outfile)
                     else:
@@ -192,7 +191,10 @@ class ECOFFGUI:
 
                     # Build combined PDF
                     combined = CombinedReport(outfile, global_report, indiv_reports)
-                    combined.save_pdf()
+                    if outfile.endswith(".pdf"):
+                        combined.save_pdf()
+                    else:
+                        combined.write_out()
 
 
             for widget in self.plot_frame.winfo_children():

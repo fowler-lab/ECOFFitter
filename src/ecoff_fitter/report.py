@@ -193,7 +193,7 @@ class CombinedReport:
         self.global_report = global_report
         self.individual_reports = individual_reports
 
-    def write_out(self, path: str) -> None:
+    def write_out(self) -> None:
         """
         Write a consolidated text report containing:
         - Global fit summary
@@ -215,10 +215,10 @@ class CombinedReport:
         # Join and write file
         text = "\n".join(lines)
 
-        with open(path, "w") as f:
+        with open(self.outfile, "w") as f:
             f.write(text)
 
-        print(f"\nCombined text report saved to: {path}")
+        print(f"\nCombined text report saved to: {self.outfile}")
 
     def save_pdf(self) -> None:
         from matplotlib.backends.backend_pdf import PdfPages
