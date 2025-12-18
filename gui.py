@@ -160,48 +160,31 @@ class ECOFFGUI:
                 individual_results[col] = (fitter, result)
 
 
-            text = "ECOFF RESULTS\n"
-            text += "=====================================\n\n"
+            text = "ECOFF RESULTS\n=====================================\n\n"
 
-            if len(individual_results.keys())>1:
-                text += "GLOBAL FIT\n"
-                text += "-------------------------------------\n"
-                text += f"  ECOFF: {global_result[0]:.4f}\n"
-                text += f"  z-value: {global_result[1]:.4f}\n"
-                for i in range(global_fitter.distributions):
-                    if global_fitter.distributions > 1:
-                        text += f"  Component {i+1}:\n"
-                    text += f"    mu = {dilution_factor**global_fitter.mus_[i]:.4f}\n"
-                    text += f"    sigma (folds) = {dilution_factor**global_fitter.sigmas_[i]:.4f}\n"
-                text += "\n"
+            if len(individual_results) > 1:
+                global_report = GenerateReport.from_fitter(global_fitter, global_result)
+                text += global_report.to_text("GLOBAL FIT")
+                text += "\nINDIVIDUAL FITS:\n-------------------------------------\n"
 
-                text += "INDIVIDUAL FITS:\n"
-                text += "-------------------------------------\n"
+            else:
+                global_report = GenerateReport.from_fitter(global_fitter, global_result)
 
-            for col, (fitter, result) in individual_results.items():
-                text += f"{col}\n"
-                text += f"  ECOFF: {result[0]:.4f}\n"
-                text += f"  z-value: {result[1]:.4f}\n"
-                for i in range(fitter.distributions):
-                    if fitter.distributions>1:
-                        text += f"  Component {i+1}:\n"
-                    text += f"    mu = {dilution_factor**fitter.mus_[i]:.4f}\n"
-                    text += f"    sigma (folds) = {dilution_factor**fitter.sigmas_[i]:.4f}\n"
-                text += "\n"
+            # Individual fits
+            for name, (fitter, result) in individual_results.items():
+                rep = GenerateReport.from_fitter(fitter, result)
+                text += rep.to_text(label=name)
+
 
             if outfile:
                 if len(individual_results.keys())==1:
                     validate_output_path(outfile)
-                    report = GenerateReport.from_fitter(global_fitter, global_result)
                     if outfile.endswith(".pdf"):
-                        report.save_pdf(outfile)
+                        global_report.save_pdf(outfile)
                     else:
-                        report.write_out(outfile)
-                    text += f"\nSaved global report to: {outfile}"
+                        global_report.write_out(outfile)
                 elif (len(individual_results.keys()))>1:
                     # Build section reports
-                    global_report = GenerateReport.from_fitter(global_fitter, global_result)
-
                     indiv_reports = {
                         name: GenerateReport.from_fitter(fitter, result)
                         for name, (fitter, result) in individual_results.items()
