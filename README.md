@@ -65,7 +65,7 @@ or
 
 A single column/array of observed MIC values.
 
-#### Example (from `demo_files/input.txt`)
+#### Example (from `demo_files/censored.txt`)
 
 ```text
 MIC     observations
