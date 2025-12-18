@@ -147,7 +147,7 @@ Once installed, you can call the CLI.
 Example using demo files:
 
 ```bash
-ecoffitter   --input demo_files/censored.txt   --params demo_files/params.txt   --outfile demo_files/output.txt
+ecoff-fitter   --input demo_files/input.txt   --params demo_files/params.txt   --outfile demo_files/output.txt
 ```
 
 Instead of using a parameter file, you can also specify parameters directly.
@@ -155,9 +155,9 @@ Instead of using a parameter file, you can also specify parameters directly.
 Usage:
 
 ```bash
-ecoff_fitter [-h] --input INPUT [--params PARAMS]
+ecoff-fitter [-h] --input INPUT [--params PARAMS]
 [--dilution_factor DILUTION_FACTOR]
-[--distributions ] [--boundary_support boundary_support]
+[--distributions DISTRIBUTIONS] [--boundary_support BOUNDARY_SUPPORT]
 [--percentile PERCENTILE] [--outfile OUTFILE] [--verbose]
 ```
 

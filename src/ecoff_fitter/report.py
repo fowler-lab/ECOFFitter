@@ -81,48 +81,44 @@ class GenerateReport:
             self.fitter.define_intervals(),
         )
 
-    def print_stats(self, verbose: bool = False) -> None:
-        print(f"\nECOFF (original scale): {self.ecoff:.2}")
 
-        if self.distributions == 1:
-            mu = self.mus[0]
-            sigma = self.sigmas[0]
-            print(f"μ: {self.dilution_factor**mu:.2f}")
-            print(f"σ (folds): {self.dilution_factor**sigma:.2f}")
-        else:
-            print("\nComponent means and sigmas (original scale):")
-            for i, (mu, sigma) in enumerate(zip(self.mus, self.sigmas), start=1):
-                print(
-                    f"  μ{i}: {self.dilution_factor**mu:.4f}, "
-                    f"σ{i} (folds): {self.dilution_factor**sigma:.4f}"
-                )
+    def to_text(self, label: str | None = None, verbose: bool = False) -> str:
+        """
+        Produce the exact text representation currently created inside the GUI.
+        `label` is optional (e.g., column name or 'GLOBAL FIT').
+        """
+        lines = []
 
+        if label:
+            lines.append(f"{label}")
+            lines.append("-------------------------------------")
+
+        lines.append(f"  ECOFF: {self.ecoff:.4f}")
+        # z-values stored in self.z are ECOFF values for 99, 97.5, 95 percentiles
+        lines.append(f"  log scale: {np.log2(self.ecoff):.4f}\n")  
+
+        # Mixture components
+        for i, (mu, sigma) in enumerate(zip(self.mus, self.sigmas), start=1):
+            prefix = f"  Component {i}:" if self.distributions > 1 else ""
+            mu_line = f"    μ = {self.dilution_factor ** mu:.4f}"
+            sigma_line = f"    σ (folds) = {self.dilution_factor ** sigma:.4f}"
+            if prefix:
+                lines.append(prefix)
+            lines.append(mu_line)
+            lines.append(sigma_line)
+
+        # Verbose model details
         if verbose and self.model is not None:
-            print("\n--- Model details ---")
-            print(self.model)
+            lines.append("")
+            lines.append("--- Model details ---")
+            lines.append(str(self.model))
+
+        return "\n".join(lines) + "\n"
+
 
     def write_out(self, path: str) -> None:
-        z0, z1, z2 = self.z
-
         with open(path, "w") as f:
-            f.write(f"ECOFF: {self.ecoff:.2f}\n")
-            f.write(f"99th percentile: {z0:.2f}\n")
-            f.write(f"97.5th percentile: {z1:.2f}\n")
-            f.write(f"95th percentile: {z2:.2f}\n")
-
-            if self.distributions == 1:
-                mu = self.mus[0]
-                sigma = self.sigmas[0]
-                f.write(
-                    f"μ: {self.dilution_factor**mu}, "
-                    f"σ (folds): {self.dilution_factor**sigma}\n"
-                )
-            else:
-                for i, (mu, sigma) in enumerate(zip(self.mus, self.sigmas), start=1):
-                    f.write(
-                        f"μ{i}: {self.dilution_factor**mu}, "
-                        f"σ{i} (folds): {self.dilution_factor**sigma}\n"
-                    )
+            f.write(self.to_text())
 
         print(f"\nResults saved to: {path}")
 
@@ -136,9 +132,13 @@ class GenerateReport:
 
     def _make_pdf(self, title: Optional[str] = None) -> Figure:
         fig, (ax_plot, ax_text) = plt.subplots(
-            nrows=1, ncols=2, figsize=(10, 4), gridspec_kw={"width_ratios": [2, 1]}
+            nrows=1,
+            ncols=2,
+            figsize=(10, 4),
+            gridspec_kw={"width_ratios": [2, 1]}
         )
 
+        # Plot area
         low_log, high_log, weights = self.intervals
 
         plot_mic_distribution(
@@ -149,50 +149,31 @@ class GenerateReport:
             dilution_factor=self.dilution_factor,
             mus=self.mus,
             sigmas=self.sigmas,
-            log2_ecoff=np.log2(self.ecoff) if self.ecoff else None,
+            log2_ecoff=np.log2(self.ecoff),
             ax=ax_plot,
         )
-        ax_plot.legend(fontsize=7, frameon=False)
 
         if title:
             ax_plot.set_title(title)
 
-        # Right-hand text -------------
-        z0, z1, z2 = self.z
+        ax_plot.legend(fontsize=7, frameon=False)
+
+        # Text area
         ax_text.axis("off")
 
-        lines = [
-            f"ECOFF: {self.ecoff:.2f}",
-            f"99th percentile: {z0:.2f}",
-            f"97.5th percentile: {z1:.2f}",
-            f"95th percentile: {z2:.2f}",
-        ]
-
-        if self.distributions == 1:
-            mu = self.mus[0]
-            sigma = self.sigmas[0]
-            lines += [
-                f"μ: {self.dilution_factor**mu:.2f}",
-                f"σ: {self.dilution_factor**sigma:.2f}",
-            ]
-        else:
-            for i, (mu, sigma) in enumerate(zip(self.mus, self.sigmas), start=1):
-                lines.append(
-                    f"μ{i}: {self.dilution_factor**mu:.4f}, "
-                    f"σ{i} (folds): {self.dilution_factor**sigma:.4f}"
-                )
+        # re-use the unified report formatter
+        text = self.to_text(label=None if title is None else title)
 
         ax_text.text(
             0.05,
-            0.9,
-            "\n".join(lines),
-            fontsize=11,
+            0.95,
+            text,
+            fontsize=10,
             va="top",
-            family="monospace",
+            family="monospace"
         )
 
         fig.tight_layout(rect=(0, 0, 1, 0.95))
-
         return fig
 
 
@@ -204,13 +185,40 @@ class CombinedReport:
         individual_reports: Dict[str, GenerateReport],
     ) -> None:
         """
-        outfile: PDF filename
+        outfile: PDF filename (for save_pdf)
         global_report: GenerateReport instance
         individual_reports: dict {column_name: GenerateReport}
         """
         self.outfile = outfile
         self.global_report = global_report
         self.individual_reports = individual_reports
+
+    def write_out(self) -> None:
+        """
+        Write a consolidated text report containing:
+        - Global fit summary
+        - Individual fit summaries
+
+        Uses GenerateReport.to_text() for formatting consistency.
+        """
+        lines: list[str] = []
+
+        # ----- GLOBAL REPORT -----
+        lines.append("===== GLOBAL FIT =====")
+        lines.append(self.global_report.to_text(label="GLOBAL FIT"))
+
+        # ----- INDIVIDUAL REPORTS -----
+        for name, report in self.individual_reports.items():
+            lines.append(f"\n===== INDIVIDUAL FIT: {name} =====")
+            lines.append(report.to_text(label=name))
+
+        # Join and write file
+        text = "\n".join(lines)
+
+        with open(self.outfile, "w") as f:
+            f.write(text)
+
+        print(f"\nCombined text report saved to: {self.outfile}")
 
     def save_pdf(self) -> None:
         from matplotlib.backends.backend_pdf import PdfPages
@@ -227,5 +235,7 @@ class CombinedReport:
                 fig = report._make_pdf(title=f"INDIVIDUAL FIT: {name}")
                 pdf.savefig(fig)
                 plt.close(fig)
+
+        print(f"Combined PDF saved to {self.outfile}")
 
         print(f"Combined PDF saved to {self.outfile}")
