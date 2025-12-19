@@ -23,15 +23,9 @@ Demo input files are provided in `demo_files/` to illustrate basic use.
 
 ## 🛠 Installation
 
-### Install from PyPI
-
-```bash
-pip install ecoffitter
-```
-
 ### Install from source
 
-Assuming in project directory:
+Assuming in project directory (after git cloning):
 
 ```bash
 pip install -e .
@@ -127,8 +121,6 @@ If `--outfile` ends in `.txt`, the tool writes:
 - ECOFF estimate
 - fitted mean & variance (per component)
 - mixture weights (if multiple distributions)
-- percentiles
-- likelihood values
 
 ### 2. PDF Report
 
@@ -137,8 +129,8 @@ If `--outfile` ends in `.pdf`, the tool writes:
 - histogram of observed MICs
 - fitted distribution curve(s)
 - ECOFF location marker
-- table of model parameters
-- censoring diagnostics
+- fitted mean & variance (per component)
+- mixture weights (if multiple distributions)
 
 ## 🚀 Command-Line Usage
 
@@ -147,7 +139,7 @@ Once installed, you can call the CLI.
 Example using demo files:
 
 ```bash
-ecoff-fitter   --input demo_files/input.txt   --params demo_files/params.txt   --outfile demo_files/output.txt
+ecoff-fitter   --input demo_files/censored.txt   --params demo_files/params.txt   --outfile demo_files/output.txt
 ```
 
 Instead of using a parameter file, you can also specify parameters directly.

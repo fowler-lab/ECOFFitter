@@ -108,10 +108,10 @@ class GenerateReport:
             lines.append(sigma_line)
 
         # Verbose model details
-        if verbose and self.model is not None:
+        if verbose:
             lines.append("")
             lines.append("--- Model details ---")
-            lines.append(str(self.model))
+            lines.extend(self._format_model_summary())
 
         return "\n".join(lines) + "\n"
 
@@ -175,6 +175,28 @@ class GenerateReport:
 
         fig.tight_layout(rect=(0, 0, 1, 0.95))
         return fig
+    
+    def _format_model_summary(self) -> list[str]:
+        """
+        Format a structured model summary from the fitter, if available.
+        """
+        if not hasattr(self.fitter, "model_summary"):
+            return ["  (model summary unavailable)"]
+
+        summary = self.fitter.model_summary()
+        lines: list[str] = []
+
+        for key, value in summary.items():
+            if value is None:
+                continue
+
+            # Format arrays nicely
+            if isinstance(value, np.ndarray):
+                value = ", ".join(f"{v:.4f}" for v in value)
+
+            lines.append(f"  {key.replace('_', ' ')}: {value}")
+
+        return lines
 
 
 class CombinedReport:
@@ -212,13 +234,13 @@ class CombinedReport:
             lines.append(f"\n===== INDIVIDUAL FIT: {name} =====")
             lines.append(report.to_text(label=name))
 
-        # Join and write file
         text = "\n".join(lines)
 
         with open(self.outfile, "w") as f:
             f.write(text)
 
         print(f"\nCombined text report saved to: {self.outfile}")
+        
 
     def save_pdf(self) -> None:
         from matplotlib.backends.backend_pdf import PdfPages
@@ -239,3 +261,5 @@ class CombinedReport:
         print(f"Combined PDF saved to {self.outfile}")
 
         print(f"Combined PDF saved to {self.outfile}")
+
+
