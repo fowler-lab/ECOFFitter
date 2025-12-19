@@ -326,3 +326,29 @@ class ECOFFitter:
             mus_sigmas.extend([mus[k], sigmas[k]])
 
         return (ecoff, z_percentile, *mus_sigmas)
+
+    def model_summary(self) -> dict[str, Any]:
+        K = self.distributions
+        n = self.obj_df.observations.sum()
+        wt_idx = int(np.argmin(self.mus_))
+
+        summary = {
+            "model_family": "interval-censored log-normal",
+            "model_type": "mixture" if K > 1 else "single",
+            "components": K,
+            "wild_type_component": wt_idx + 1,
+            "dilution_factor": self.dilution_factor,
+            "boundary_support": self.boundary_support,
+            "n_observations": n,
+            "log_likelihood": self.loglike_,
+            "converged": self.converged_,
+            "n_iter": self.n_iter_,
+            "pis": self.pis_,
+        }
+
+        # Information criteria (if identifiable)
+        k_params = 2 * K + (K - 1)
+        summary["aic"] = 2 * k_params - 2 * self.loglike_
+        summary["bic"] = np.log(n) * k_params - 2 * self.loglike_
+
+        return summary

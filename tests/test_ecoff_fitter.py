@@ -236,3 +236,39 @@ def test_fit_mixture_refine_flag(monkeypatch, simple_data):
     assert fitter.converged_
     assert len(fitter.mus_) == 2
     assert np.isfinite(fitter.mus_[0])
+
+def test_model_summary_basic(simple_data):
+    """
+    model_summary() should return a structured, self-consistent summary
+    after fitting.
+    """
+    fitter = ECOFFitter(simple_data, distributions=2)
+    fitter.fit()
+
+    summary = fitter.model_summary()
+
+    # basic structure
+    assert isinstance(summary, dict)
+
+    # required keys
+    required_keys = {
+        "model_family",
+        "model_type",
+        "components",
+        "wild_type_component",
+        "n_observations",
+        "log_likelihood",
+        "converged",
+        "pis",
+        "aic",
+        "bic",
+    }
+    assert required_keys.issubset(summary.keys())
+
+    # internal consistency
+    assert summary["components"] == fitter.distributions
+    assert summary["n_observations"] == fitter.obj_df.observations.sum()
+    assert np.isclose(np.sum(summary["pis"]), 1.0)
+    assert summary["converged"] is True
+    assert summary["bic"] >= summary["aic"]
+

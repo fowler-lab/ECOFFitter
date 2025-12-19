@@ -117,13 +117,13 @@ def main(argv: Optional[List[str]] = None) -> None:
         global_report = GenerateReport.from_fitter(global_fitter, global_result)
 
         if len(individual_results) > 1:
-            text += global_report.to_text("GLOBAL FIT")
+            text += global_report.to_text("GLOBAL FIT", verbose=args.verbose)
             text += "\nINDIVIDUAL FITS:\n-------------------------------------\n"
 
         # Individual fits
         for name, (fitter, result) in individual_results.items():
             rep = GenerateReport.from_fitter(fitter, result)
-            text += rep.to_text(label=name)       
+            text += rep.to_text(label=name, verbose=args.verbose)       
         
         if args.outfile:
             validate_output_path(args.outfile)

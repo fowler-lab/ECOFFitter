@@ -55,6 +55,16 @@ class ECOFFGUI:
         self.percentile_entry.insert(0, "99")
         self.percentile_entry.pack(side="left", padx=10)
 
+        self.verbose_var = tk.BooleanVar(value=False)
+        verbose_frame = tk.Frame(root)
+        verbose_frame.pack(pady=5, anchor="w")
+        tk.Checkbutton(
+            verbose_frame,
+            text="model diagnostics",
+            variable=self.verbose_var,
+        ).pack(side="left")
+
+
         # OUTPUT FILE
         output_frame = tk.Frame(root)
         output_frame.pack(pady=5, anchor="w")
@@ -125,6 +135,7 @@ class ECOFFGUI:
         tails = int(self.tails_entry.get()) if self.tails_entry.get().strip() else None
         percentile = float(self.percentile_entry.get())
         outfile = self.output_entry.get()
+        verbose = self.verbose_var.get()
 
         if not input_file:
             messagebox.showerror("Error", "You must select an input MIC data file.")
@@ -163,16 +174,15 @@ class ECOFFGUI:
             text = "ECOFF RESULTS\n=====================================\n\n"
 
             global_report = GenerateReport.from_fitter(global_fitter, global_result)
+            
             if len(individual_results) > 1:
-                
-                text += global_report.to_text("GLOBAL FIT")
+                text += global_report.to_text("GLOBAL FIT", verbose=verbose)
                 text += "\nINDIVIDUAL FITS:\n-------------------------------------\n"
-
 
             # Individual fits
             for name, (fitter, result) in individual_results.items():
                 rep = GenerateReport.from_fitter(fitter, result)
-                text += rep.to_text(label=name)
+                text += rep.to_text(label=name, verbose=verbose)
 
 
             if outfile:

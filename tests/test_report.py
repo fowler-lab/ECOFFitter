@@ -2,7 +2,7 @@ import io
 import sys
 import pytest
 from unittest.mock import MagicMock, patch, call, ANY
-
+import numpy as np
 import ecoff_fitter.cli as cli
 import ecoff_fitter.report as report
 
@@ -205,15 +205,29 @@ def test_generate_report_to_text_two_dist_verbose():
     fitter.dilution_factor = 2
     fitter.mus_ = [1, 2]
     fitter.sigmas_ = [0.2, 0.5]
-    fitter.model_ = "FAKE_MODEL_DETAILS"
 
-    r = cli.GenerateReport(fitter=fitter, ecoff=4.0, z=(10, 8, 6))
+    fitter.model_summary.return_value = {
+        "model_family": "interval-censored log-normal",
+        "model_type": "mixture",
+        "components": 2,
+        "wild_type_component": 1,
+        "n_observations": 100,
+        "log_likelihood": -123.45,
+        "converged": True,
+        "pis": [0.7, 0.3],
+        "aic": 260.9,
+        "bic": 270.1,
+    }
+
+    r = report.GenerateReport(fitter=fitter, ecoff=4.0, z=(10, 8, 6))
     text = r.to_text(verbose=True)
 
     assert "Component 1" in text
     assert "Component 2" in text
     assert "--- Model details ---" in text
-    assert "FAKE_MODEL_DETAILS" in text
+    assert "model family: interval-censored log-normal" in text
+    assert "components: 2" in text
+
 
 def test_combined_report_write_out(tmp_path):
     # CombinedReport now writes to its outfile
@@ -235,8 +249,7 @@ def test_combined_report_write_out(tmp_path):
         individual_reports={"A": report_A, "B": report_B},
     )
 
-    # Act
-    combined.write_out()   # NO ARGUMENT NOW
+    combined.write_out()  
 
     text = outfile.read_text()
 
@@ -252,4 +265,47 @@ def test_combined_report_write_out(tmp_path):
     global_report.to_text.assert_called_with(label="GLOBAL FIT")
     report_A.to_text.assert_called_with(label="A")
     report_B.to_text.assert_called_with(label="B")
+
+
+def test_generate_report_format_model_summary():
+    """
+    _format_model_summary() should format key/value pairs from
+    fitter.model_summary() into readable text lines.
+    """
+    fitter = MagicMock()
+    fitter.model_summary.return_value = {
+        "model_family": "interval-censored log-normal",
+        "model_type": "mixture",
+        "components": 2,
+        "wild_type_component": 1,
+        "n_observations": 100,
+        "log_likelihood": -123.45,
+        "converged": True,
+        "pis": np.array([0.7, 0.3]),
+        "aic": 260.9,
+        "bic": 270.1,
+    }
+
+    r = report.GenerateReport(
+        fitter=fitter,
+        ecoff=4.0,
+        z=(10, 8, 6),
+    )
+
+    lines = r._format_model_summary()
+
+    # basic structure
+    assert isinstance(lines, list)
+    assert all(isinstance(line, str) for line in lines)
+
+    # content checks (formatted, not raw)
+    assert any("model family: interval-censored log-normal" in line for line in lines)
+    assert any("model type: mixture" in line for line in lines)
+    assert any("components: 2" in line for line in lines)
+    assert any("wild type component: 1" in line for line in lines)
+    assert any("log likelihood: -123.45" in line for line in lines)
+    assert any("converged: True" in line for line in lines)
+    assert any("pis: 0.7000, 0.3000" in line for line in lines)
+    assert any("aic: 260.9" in line for line in lines)
+    assert any("bic: 270.1" in line for line in lines)
 
