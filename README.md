@@ -50,10 +50,10 @@ It must be a **tabular file** in one of these formats:
 
 #### Required columns
 
-| Column         | Type            | Description                                                                                                 |
-| -------------- | --------------- | ----------------------------------------------------------------------------------------------------------- |
-| `MIC`          | float or string | MIC dilution (e.g., `0.125`, `0.25`, `1`, `2`, …). Can include censored values such as `<=0.125` or `>=64`. |
-| `observations` | integer         | Number of isolates observed at that MIC dilution.                                                           |
+| Column         | Type            | Description                                                                                                |
+| -------------- | --------------- | ---------------------------------------------------------------------------------------------------------- |
+| `MIC`          | float or string | MIC dilution (e.g., `0.125`, `0.25`, `1`, `2`, …). Can include censored values such as `<=0.125` or `>64`. |
+| `observations` | integer         | Number of isolates observed at that MIC dilution.                                                          |
 
 or
 
@@ -75,7 +75,7 @@ MIC     observations
 >8      2196
 ```
 
-- censored balues (e.g >=16) are automatically detected and handled
+- censored values (e.g >16) are automatically detected and handled
 
 ### 2. Parameter File (`--params`)
 
@@ -83,12 +83,12 @@ This is an **optional** configuration file (YAML, TXT, or `key=value` list) that
 
 Typical fields include:
 
-| Key                | Description                                                     |
-| ------------------ | --------------------------------------------------------------- |
-| `dilution_factor`  | Fold-change between MIC dilutions (e.g., `2`).                  |
-| `distributions`    | Number of Gaussian mixture components.                          |
-| `boundary_support` | How many dilution steps to extend upper tail for censored data. |
-| `percentile`       | Percentile used to compute the ECOFF (e.g., `99`).              |
+| Key                | Description                                                                   |
+| ------------------ | ----------------------------------------------------------------------------- |
+| `dilution_factor`  | Fold-change between MIC dilutions (e.g., `2`).                                |
+| `distributions`    | Number of Gaussian mixture components.                                        |
+| `boundary_support` | How many dilution steps to extend upper and/or lower tails for censored data. |
+| `percentile`       | Percentile used to compute the ECOFF (e.g., `99`).                            |
 
 #### Example (`demo_files/params.txt`)
 
@@ -166,7 +166,7 @@ ecoff-fitter [-h] --input INPUT [--params PARAMS]
 | `--params`           | `PARAMS`           | Optional parameter file (`YAML`, `TXT`, or `key=value` list). Defines `dilution_factor`, `distributions`, and `boundary_support`. Overrides CLI flags if provided. | `None`  |
 | `--dilution_factor`  | `DILUTION_FACTOR`  | Dilution factor                                                                                                                                                    | `2`     |
 | `--distributions`    | `DISTRIBUTIONS`    | Number of Gaussian mixture components to fit.                                                                                                                      | `1`     |
-| `--boundary_support` | `boundary_support` | Extra upper-dilution steps for censored MICs (set to `None` to disable).                                                                                           | `1`     |
+| `--boundary_support` | `boundary_support` | Extra upper- and lower-dilution steps for censored MICs (set to `None` to disable).                                                                                | `1`     |
 | `--percentile`       | `PERCENTILE`       | Percentile used to compute the ECOFF (0–100).                                                                                                                      | `99.0`  |
 | `--outfile`          | `OUTFILE`          | Path to save ECOFF results (`.txt` or `.pdf`).                                                                                                                     | `None`  |
 | `--verbose`          | —                  | Print detailed model information and parameters.                                                                                                                   | `False` |
