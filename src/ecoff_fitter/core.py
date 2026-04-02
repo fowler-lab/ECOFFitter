@@ -265,7 +265,7 @@ class ECOFFitter:
             options (dict): Optional fit settings.
 
         Returns:
-            tuple: ECOFF value, z-percentile, and fitted parameters.
+            tuple: ECOFF value, z-percentile, mus, and sigmas.
         """
 
         if hasattr(self, "percentile"):

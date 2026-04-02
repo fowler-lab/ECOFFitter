@@ -17,6 +17,7 @@ def plot_mic_distribution(
     log2_ecoff: Optional[float] = None,
     global_x_min: Optional[float] = None,
     global_x_max: Optional[float] = None,
+    density: bool = False,
     ax: Optional[matplotlib.axes.Axes] = None,
 ) -> matplotlib.axes.Axes:
     """
@@ -89,6 +90,9 @@ def plot_mic_distribution(
     # ---------------------------------------------------
     # Deduplicate plotting intervals and compute counts
     # ---------------------------------------------------
+    # ---------------------------------------------------
+    # Deduplicate plotting intervals and compute counts
+    # ---------------------------------------------------
     plot_intervals = list(zip(plot_low, plot_high))
     unique_intervals = sorted(set(plot_intervals))
 
@@ -97,15 +101,29 @@ def plot_mic_distribution(
         for lo, hi in unique_intervals
     ]
 
-    mids = [(lo + hi) / 2 for lo, hi in unique_intervals]
-    widths = [(hi - lo) for lo, hi in unique_intervals]
+    mids = np.array([(lo + hi) / 2 for lo, hi in unique_intervals], dtype=float)
+    widths = np.array([(hi - lo) for lo, hi in unique_intervals], dtype=float)
+
+    total_weight = weights.sum()
+
+    if density:
+        heights = np.divide(
+            np.asarray(counts, dtype=float),
+            total_weight * widths,
+            out=np.zeros_like(widths, dtype=float),
+            where=widths > 0,
+        )
+        ylabel = "Probability density"
+    else:
+        heights = np.asarray(counts, dtype=float)
+        ylabel = "Counts"
 
     # ---------------------------------------------------
     # Draw histogram bars
     # ---------------------------------------------------
     ax.bar(
         mids,
-        counts,
+        heights,
         width=widths,
         align="center",
         edgecolor="darkgrey",
@@ -165,14 +183,18 @@ def plot_mic_distribution(
 
     mixture_pdf = np.sum(component_pdfs, axis=0)
 
-    scale = max(counts) / np.max(mixture_pdf)
-
-    if len(component_pdfs) > 1:
+    if density:
         for i, comp in enumerate(component_pdfs, start=1):
-            ax.plot(x_values, comp * scale, lw=2, label=f"Component {i}")
-        ax.plot(x_values, mixture_pdf * scale, "k--", lw=1.2, label="Model")
+            ax.plot(x_values, comp, lw=2, label=f"Component {i}")
+        ax.plot(x_values, mixture_pdf, "k--", lw=1.2, label="Model")
     else:
-        ax.plot(x_values, mixture_pdf * scale, "k--", lw=1.2, label="Model")
+        scale = max(heights) / np.max(mixture_pdf) if np.max(mixture_pdf) > 0 else 1.0
+        if len(component_pdfs) > 1:
+            for i, comp in enumerate(component_pdfs, start=1):
+                ax.plot(x_values, comp * scale, lw=2, label=f"Component {i}")
+            ax.plot(x_values, mixture_pdf * scale, "k--", lw=1.2, label="Model")
+        else:
+            ax.plot(x_values, mixture_pdf * scale, "k--", lw=1.2, label="Model")
 
     # ---------------------------------------------------
     # Axis formatting
@@ -181,7 +203,7 @@ def plot_mic_distribution(
     if np.any(left_censored):
         ax.margins(x=0)
     ax.set_xlim(axis_min, axis_max)
-    ax.set_ylabel("Counts")
+    ax.set_ylabel(ylabel)
 
     xticks = ax.get_xticks()
     mic_labels = [f"{dilution_factor ** x:.2g}" for x in xticks]

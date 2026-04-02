@@ -30,6 +30,10 @@ def mock_fitter(monkeypatch):
 def mock_report(monkeypatch):
     """Mock GenerateReport.from_fitter."""
     report_instance = MagicMock()
+    report_instance.to_text.return_value = "GLOBAL FIT\n"
+    report_instance.write_out = MagicMock()
+    report_instance.save_pdf = MagicMock()
+
     report_cls = MagicMock()
     report_cls.from_fitter.return_value = report_instance
 
@@ -104,9 +108,32 @@ def test_main_runs_with_multiple_individuals(monkeypatch, mock_fitter, mock_repo
     combined_cls = MagicMock(return_value=combined_instance)
     monkeypatch.setattr(cli, "CombinedReport", combined_cls)
 
-    cli.main(["--input", "fake.csv", "--outfile", "combined.pdf"])
+    cli.main(["--input", "fake.csv", "--outfile", "combined.pdf", "--fit_individual"])
 
     mock_validate.assert_called_once_with("combined.pdf")
 
     combined_cls.assert_called_once()
     combined_instance.save_pdf.assert_called_once()
+
+
+def test_main_default_skips_individual_fits(monkeypatch, mock_fitter, mock_report, mock_validate):
+    fake_global = MagicMock()
+
+    def fake_loader(path):
+        return {
+            "global": fake_global,
+            "individual": {
+                "A": MagicMock(),
+                "B": MagicMock(),
+            },
+        }
+
+    monkeypatch.setattr(cli, "read_multi_obs_input", fake_loader)
+
+    combined_cls = MagicMock()
+    monkeypatch.setattr(cli, "CombinedReport", combined_cls)
+
+    cli.main(["--input", "fake.csv", "--outfile", "combined.pdf"])
+
+    combined_cls.assert_not_called()
+    mock_report.save_pdf.assert_called_once_with("combined.pdf")

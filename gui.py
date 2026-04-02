@@ -35,7 +35,7 @@ class ECOFFGUI:
         options_frame = tk.Frame(root)
         options_frame.pack(pady=5, anchor="w")
 
-        tk.Label(options_frame, text="Distributions:").pack(side="left")
+        tk.Label(options_frame, text="Populations:").pack(side="left")
         self.dist_entry = tk.Entry(options_frame, width=5)
         self.dist_entry.insert(0, "1")
         self.dist_entry.pack(side="left", padx=10)
@@ -45,7 +45,7 @@ class ECOFFGUI:
         self.dil_entry.insert(0, "2")
         self.dil_entry.pack(side="left", padx=10)
 
-        tk.Label(options_frame, text="Boundary intervals:").pack(side="left")
+        tk.Label(options_frame, text="Truncation support:").pack(side="left")
         self.tails_entry = tk.Entry(options_frame, width=5)
         self.tails_entry.insert(0, "1")
         self.tails_entry.pack(side="left", padx=10)
@@ -64,6 +64,20 @@ class ECOFFGUI:
             variable=self.verbose_var,
         ).pack(side="left")
 
+        self.density_var = tk.BooleanVar(value=False)
+        tk.Checkbutton(
+            verbose_frame,
+            text="plot density",
+            variable=self.density_var,
+        ).pack(side="left", padx=10)
+
+
+        self.fit_individual_var = tk.BooleanVar(value=False)
+        tk.Checkbutton(
+            verbose_frame,
+            text="fit individual populations",
+            variable=self.fit_individual_var,
+        ).pack(side="left", padx=10)
 
         # OUTPUT FILE
         output_frame = tk.Frame(root)
@@ -136,6 +150,7 @@ class ECOFFGUI:
         percentile = float(self.percentile_entry.get())
         outfile = self.output_entry.get()
         verbose = self.verbose_var.get()
+        density = self.density_var.get()
 
         if not input_file:
             messagebox.showerror("Error", "You must select an input MIC data file.")
@@ -159,47 +174,47 @@ class ECOFFGUI:
 
             # INDIVIDUAL FITS
             individual_results = {}
-            for col, subdf in df_individual.items():
-                fitter = ECOFFitter(
-                    input=subdf,
-                    params=params_file,
-                    distributions=distributions,
-                    boundary_support=tails,
-                    dilution_factor=dilution_factor,
-                )
-                result = fitter.generate(percentile=percentile)
-                individual_results[col] = (fitter, result)
+
+            if self.fit_individual_var.get():
+                for col, subdf in df_individual.items():
+                    fitter = ECOFFitter(
+                        input=subdf,
+                        params=params_file,
+                        distributions=distributions,
+                        boundary_support=tails,
+                        dilution_factor=dilution_factor,
+                    )
+                    result = fitter.generate(percentile=percentile)
+                    individual_results[col] = (fitter, result)
 
 
             text = "ECOFF RESULTS\n=====================================\n\n"
 
             global_report = GenerateReport.from_fitter(global_fitter, global_result)
             
-            if len(individual_results) > 1:
-                text += global_report.to_text("GLOBAL FIT", verbose=verbose)
-                text += "\nINDIVIDUAL FITS:\n-------------------------------------\n"
+            text += global_report.to_text("GLOBAL FIT", verbose=verbose)
 
-            # Individual fits
-            for name, (fitter, result) in individual_results.items():
-                rep = GenerateReport.from_fitter(fitter, result)
-                text += rep.to_text(label=name, verbose=verbose)
+            if individual_results:
+                text += "\nINDIVIDUAL FITS:\n-------------------------------------\n"
+                for name, (fitter, result) in individual_results.items():
+                    rep = GenerateReport.from_fitter(fitter, result)
+                    text += rep.to_text(label=name, verbose=verbose)
 
 
             if outfile:
                 validate_output_path(outfile)
-                if len(individual_results.keys())==1:
+
+                if not self.fit_individual_var.get():
                     if outfile.endswith(".pdf"):
                         global_report.save_pdf(outfile)
                     else:
                         global_report.write_out(outfile)
-                elif (len(individual_results.keys()))>1:
-                    # Build section reports
+                else:
                     indiv_reports = {
                         name: GenerateReport.from_fitter(fitter, result)
                         for name, (fitter, result) in individual_results.items()
                     }
 
-                    # Build combined PDF
                     combined = CombinedReport(outfile, global_report, indiv_reports)
                     if outfile.endswith(".pdf"):
                         combined.save_pdf()
@@ -210,50 +225,50 @@ class ECOFFGUI:
             for widget in self.plot_frame.winfo_children():
                 widget.destroy()
 
-            if len(individual_results.keys())>1:
-                fig_global = plt.Figure(figsize=(6, 3), dpi=100)
-                axg = fig_global.add_subplot(111)
+            fig_global = plt.Figure(figsize=(6, 3), dpi=100)
+            axg = fig_global.add_subplot(111)
 
-                gl_low, gl_high, gl_w = global_fitter.define_intervals()
-                plot_mic_distribution(
-                    low_log=gl_low,
-                    high_log=gl_high,
-                    weights=global_fitter.weights_,
-                    dilution_factor=dilution_factor,
-                    mus=global_fitter.mus_,
-                    sigmas=global_fitter.sigmas_,
-                    pis=global_fitter.pis_,
-                    log2_ecoff=global_result[1],
-                    ax=axg
-                )
-                axg.set_title('Aggregate')
+            gl_low, gl_high, gl_w = global_fitter.define_intervals()
+            plot_mic_distribution(
+                low_log=gl_low,
+                high_log=gl_high,
+                weights=global_fitter.weights_,
+                dilution_factor=dilution_factor,
+                mus=global_fitter.mus_,
+                sigmas=global_fitter.sigmas_,
+                pis=global_fitter.pis_,
+                log2_ecoff=global_result[1],
+                density=density,   # or False
+                ax=axg
+            )
+            axg.set_title("Aggregate")
+            fig_global.tight_layout()
+            widget = FigureCanvasTkAgg(fig_global, master=self.plot_frame).get_tk_widget()
+            widget.pack(fill="both", expand=True, pady=10)
 
-                fig_global.tight_layout()
-                widget = FigureCanvasTkAgg(fig_global, master=self.plot_frame).get_tk_widget()
-                widget.pack(fill="both", expand=True, pady=10)
+            if self.fit_individual_var.get():
+                for col, (fitter, result) in individual_results.items():
+                    fig_i = plt.Figure(figsize=(6, 3), dpi=100)
+                    axi = fig_i.add_subplot(111)
 
-            for col, (fitter, result) in individual_results.items():
-                fig_i = plt.Figure(figsize=(6, 3), dpi=100)
-                axi = fig_i.add_subplot(111)
+                    low, high, w = fitter.define_intervals()
+                    plot_mic_distribution(
+                        low_log=low,
+                        high_log=high,
+                        weights=fitter.weights_,
+                        dilution_factor=dilution_factor,
+                        mus=fitter.mus_,
+                        sigmas=fitter.sigmas_,
+                        pis=fitter.pis_,
+                        log2_ecoff=result[1],
+                        density=density,   # or False
+                        ax=axi
+                    )
 
-                low, high, w = fitter.define_intervals()
-
-                plot_mic_distribution(
-                    low_log=low,
-                    high_log=high,
-                    weights=fitter.weights_,
-                    dilution_factor=dilution_factor,
-                    mus=fitter.mus_,
-                    sigmas=fitter.sigmas_,
-                    pis=fitter.pis_,
-                    log2_ecoff=result[1],
-                    ax=axi
-                )
-
-                axi.set_title(f"{col}")
-                fig_i.tight_layout()
-                widget = FigureCanvasTkAgg(fig_i, master=self.plot_frame).get_tk_widget()
-                widget.pack(fill="both", expand=True, pady=10)
+                    axi.set_title(f"{col}")
+                    fig_i.tight_layout()
+                    widget = FigureCanvasTkAgg(fig_i, master=self.plot_frame).get_tk_widget()
+                    widget.pack(fill="both", expand=True, pady=10)
 
             self.write_output(text)
 

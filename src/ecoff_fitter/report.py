@@ -20,6 +20,7 @@ class GenerateReport:
     fitter: Any
     ecoff: float
     z: Tuple[float, float, float]  # Percentile-based ECOFFs (99, 97.5, 95)
+    density: bool = False
 
     @classmethod
     def from_fitter(cls, fitter: Any, result: Tuple[Any, ...]) -> "GenerateReport":
@@ -41,6 +42,7 @@ class GenerateReport:
             fitter=fitter,
             ecoff=ecoff,
             z=(z0, z1, z2),
+            density=getattr(fitter, "density", False),
         )
 
     @property
@@ -150,6 +152,7 @@ class GenerateReport:
             mus=self.mus,
             sigmas=self.sigmas,
             log2_ecoff=np.log2(self.ecoff),
+            density=self.density,
             ax=ax_plot,
         )
 
