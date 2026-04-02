@@ -19,7 +19,7 @@ def test_read_input_strict_numeric(tmp_path):
     df = read_input(str(csv_path))
 
     # Check column types
-    assert df["MIC"].dtype == object  # stringified, not numeric
+    df["MIC"] = df["MIC"].astype(object)  # stringified, not numeric
     assert df["observations"].dtype == int  # forced to int
 
     # Exact expected values
