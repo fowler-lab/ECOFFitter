@@ -10,11 +10,12 @@ def validate_input_source(input: str | DataFrame | dict[str, Any]) -> None:
     Validate the input source for ECOFFitter.
 
     Args:
-        input (str | pd.DataFrame | dict): Input MIC data or file path or dict.
+        input (str | DataFrame | dict[str, Any]): MIC and observation data or
+            a path to an input file.
 
     Raises:
         FileNotFoundError: If the file does not exist.
-        ValueError: If the input type is invalid.
+        ValueError: If the input type or required columns are invalid.
     """
 
     if isinstance(input, pd.DataFrame):
@@ -41,7 +42,8 @@ def validate_params_source(
     Pre-validate the params argument before attempting to read it.
 
     Args:
-        params (dict | str | list | array | DataFrame | None): Parameter input.
+        params (dict[str, Any] | str | list[Any] | tuple[Any, ...] | DataFrame | Any | None):
+            Parameter mapping, path, or array-like value to validate.
 
     Raises:
         FileNotFoundError: If the provided file path does not exist.
@@ -81,7 +83,7 @@ def validate_mic_data(df: DataFrame) -> None:
         df (DataFrame): Input MIC data.
 
     Raises:
-        ValueError: If invalid MIC formats or negative observation counts are found.
+        ValueError: If MIC values are invalid or observation counts are negative.
     """
     if df.empty:
         raise ValueError("Input DataFrame is empty.")
@@ -94,7 +96,9 @@ def validate_mic_data(df: DataFrame) -> None:
         raise ValueError("MIC column contains empty or invalid entries.")
 
     # MIC pattern check
-    valid_pattern = re.compile(r"^(<=|>)?\d+(\.\d+)?$")
+    valid_pattern = re.compile(
+    r"^(<=|>)?(\d+(\.\d+)?)(/(\d+(\.\d+)?))?$"
+        )
     bad_rows = df.loc[~df["MIC"].astype(str).str.match(valid_pattern)]
     if not bad_rows.empty:
         raise ValueError(f"Invalid MIC format found in rows: {bad_rows.index.tolist()}")
@@ -109,7 +113,8 @@ def validate_params(
     Args:
         dilution_factor (int): The MIC dilution step.
         distributions (int): Number of components in the mixture.
-        boundary_support (int | None): Number of boundary support to include.
+        boundary_support (int | None): Number of dilution steps used to extend
+            censoring bounds, or None for unbounded tails.
 
     Raises:
         ValueError: If any parameter is outside acceptable range.
@@ -130,10 +135,17 @@ def validate_params(
 
 
 def validate_output_path(path: str) -> bool:
-    """
-    Checks if the given path is safe and writable, and that the file extension is .txt or .pdf.
+    """Validate an output path and its containing directory.
 
-    Returns True if valid, otherwise raises ValueError.
+    Args:
+        path (str): Destination path ending in ``.txt`` or ``.pdf``.
+
+    Returns:
+        bool: True when the extension and destination directory are valid.
+
+    Raises:
+        ValueError: If the extension is unsupported or the directory is absent.
+        PermissionError: If the directory is not writable.
     """
     # Check extension
     allowed_exts = (".txt", ".pdf")

@@ -53,8 +53,8 @@ class ECOFFitter:
         Initialize the ECOFFitter.
 
         Input may be a DataFrame with 'MIC' and 'observations' columns, or a
-        file (txt, csv, tsv, xlsx, xls) containing the same structure. A
-        single-column table or array of MIC values is also accepted.
+        supported file containing the same structure. Single-column MIC
+        values are also accepted.
 
         Parameters may be supplied directly, or via a dictionary or config
         file (yaml, yml, txt) containing dilution_factor, distributions, and
@@ -66,8 +66,9 @@ class ECOFFitter:
                 manual arguments.
             dilution_factor (int): MIC dilution factor (default 2).
             distributions (int): Number of normal components to fit.
-            boundary_support (int | None): Number of intervals defining
-                censoring bounds (default 1).
+            boundary_support (int | None): Number of dilution steps used to
+                extend censoring bounds (default 1); None leaves tails
+                unbounded.
         """
 
         validate_input_source(input)
@@ -98,7 +99,7 @@ class ECOFFitter:
         or a finite mixture model.
 
         Args:
-            options (dict): Optional solver or EM settings.
+            options (dict[str, Any] | None): Optional solver or EM settings.
 
         Returns:
             self: The fitted ECOFFitter instance.
@@ -119,7 +120,8 @@ class ECOFFitter:
         regression.
 
         Args:
-            options (dict | None): Optimization options for the solver.
+            options (dict[str, Any] | None): Optimization options for the
+                interval regression solver.
 
         Returns:
             self: The fitted ECOFFitter instance with stored parameters.
@@ -147,7 +149,8 @@ class ECOFFitter:
         algorithm followed by optional refinement.
 
         Args:
-            options (dict | None): EM and refinement options.
+            options (dict[str, Any] | None): EM settings (``max_iter``,
+                ``tol``) and refinement setting (``refine``).
 
         Returns:
             self: The fitted ECOFFitter instance with stored mixture parameters.
@@ -183,11 +186,13 @@ class ECOFFitter:
         censoring rules, then transform to log dilution space.
 
         Args:
-            df (DataFrame | None): Optional MIC data to override stored input.
+            df (Optional[DataFrame]): Optional MIC data to override stored
+                input.
 
         Returns:
-            tuple: (y_low_log, y_high_log, weights) – log-transformed interval
-            bounds and observation weights.
+            Tuple[NDArray[np.floating], NDArray[np.floating], NDArray[np.floating]]:
+                Log-transformed lower bounds, upper bounds, and observation
+                weights.
         """
 
         if df is None:
@@ -201,10 +206,15 @@ class ECOFFitter:
         if self.boundary_support is not None:
             tail_dilution_factor = self.dilution_factor**self.boundary_support
 
+        def parse_mic_value(mic: str) -> float:
+            #if a fraction (ie 2 drugs), just keep the numerator
+            return float(mic.split('/')[0])
+
         # Process each MIC value and define intervals
         for i, mic in enumerate(df.MIC):
+
             if mic.startswith("<="):  # Left-censored value
-                lower_bound = float(mic[2:])
+                lower_bound = parse_mic_value(mic[2:])
                 y_low[i] = (
                     1e-6
                     if self.boundary_support is None
@@ -213,7 +223,7 @@ class ECOFFitter:
                 y_high[i] = lower_bound
 
             elif mic.startswith(">"):  # Right-censored value
-                upper_bound = float(mic[1:])
+                upper_bound = parse_mic_value(mic[1:])
                 y_low[i] = upper_bound
                 y_high[i] = (
                     np.inf
@@ -222,7 +232,7 @@ class ECOFFitter:
                 )
 
             else:  # Exact MIC value
-                mic_value = float(mic)
+                mic_value = parse_mic_value(mic)
                 y_low[i] = mic_value / self.dilution_factor
                 y_high[i] = mic_value
 
@@ -238,19 +248,20 @@ class ECOFFitter:
         Transform interval bounds into log base–dilution_factor space.
 
         Args:
-            y_low (array-like): Lower interval bounds.
-            y_high (array-like): Upper interval bounds.
+            y_low (NDArray[np.floating]): Lower interval bounds.
+            y_high (NDArray[np.floating]): Upper interval bounds.
 
         Returns:
-            tuple: Log-transformed (y_low_log, y_high_log).
+            Tuple[NDArray[np.floating], NDArray[np.floating]]: Transformed
+                lower and upper bounds.
         """
         log_base = np.log(self.dilution_factor)
         # Transform intervals to log space
         y_low = np.clip(y_low, 1e-12, None)
         y_high = np.clip(y_high, 1e-12, None)
 
-        y_low_log = np.log(y_low, where=(y_low > 0)) / log_base
-        y_high_log = np.log(y_high, where=(y_high > 0)) / log_base
+        y_low_log = np.log(y_low) / log_base
+        y_high_log = np.log(y_high) / log_base
 
         return y_low_log, y_high_log
 
@@ -261,11 +272,12 @@ class ECOFFitter:
         Fit the model and compute the ECOFF at a specified percentile.
 
         Args:
-            percentile (float): Desired percentile (default 99).
-            options (dict): Optional fit settings.
+            percentile (int | float): Desired percentile (default 99).
+            options (dict[str, Any] | None): Optional fit settings.
 
         Returns:
-            tuple: ECOFF value, z-percentile, mus, and sigmas.
+            Tuple[Any, ...]: ECOFF, percentile location, and fitted means and
+                standard deviations.
         """
 
         if hasattr(self, "percentile"):
@@ -283,7 +295,8 @@ class ECOFFitter:
         Compute the ECOFF and percentile location from the fitted model.
 
         Args:
-            percentile (float): Percentile in the wild-type component.
+            percentile (float): Percentile in the wild-type component, between
+                0 and 100.
 
         Returns:
             tuple:
@@ -328,6 +341,12 @@ class ECOFFitter:
         return (ecoff, z_percentile, *mus_sigmas)
 
     def model_summary(self) -> dict[str, Any]:
+        """Return fitted model metadata and information criteria.
+
+        Returns:
+            dict[str, Any]: Model family, component count, wild-type component,
+                fitting diagnostics, and AIC/BIC values.
+        """
         K = self.distributions
         n = self.obj_df.observations.sum()
         wt_idx = int(np.argmin(self.mus_))

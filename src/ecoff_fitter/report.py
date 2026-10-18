@@ -13,8 +13,8 @@ class GenerateReport:
     """
     Container for ECOFF fitting results and reporting utilities.
 
-    Now stores a reference to the ECOFFitter instance (Option A),
-    avoiding duplication of distributions, mus, sigmas, intervals, etc.
+    The fitter reference supplies model parameters and interval data when
+    formatting text or creating figures.
     """
 
     fitter: Any
@@ -29,6 +29,14 @@ class GenerateReport:
 
         result = (ecoff, z_percentile, mu, sigma)   # single
         result = (ecoff, z_percentile, mu1, sigma1, ..., muK, sigmaK) # mixture
+
+        Args:
+            fitter (Any): Fitted ECOFFitter instance.
+            result (Tuple[Any, ...]): Result returned by
+                :meth:`ECOFFitter.generate`.
+
+        Returns:
+            GenerateReport: Report initialized with ECOFF values and fitter.
         """
 
         # Percentiles derived from fitter
@@ -47,26 +55,32 @@ class GenerateReport:
 
     @property
     def distributions(self) -> int:
+        """Return the number of fitted mixture components."""
         return cast(int, self.fitter.distributions)
 
     @property
     def dilution_factor(self) -> float:
+        """Return the MIC dilution factor used by the fitter."""
         return cast(float, self.fitter.dilution_factor)
 
     @property
     def mus(self) -> NDArray[np.floating]:
+        """Return fitted component means in log-dilution space."""
         return cast(NDArray[np.floating], self.fitter.mus_)
 
     @property
     def sigmas(self) -> NDArray[np.floating]:
+        """Return fitted component standard deviations."""
         return cast(NDArray[np.floating], self.fitter.sigmas_)
 
     @property
     def pis(self) -> Optional[NDArray[np.floating]]:
+        """Return component weights when available."""
         return getattr(self.fitter, "pis_", None)
 
     @property
     def model(self) -> Any:
+        """Return the fitted underlying model object when available."""
         return getattr(self.fitter, "model_", None)
 
 
@@ -74,6 +88,12 @@ class GenerateReport:
     def intervals(
         self,
     ) -> tuple[NDArray[np.floating], NDArray[np.floating], NDArray[np.floating]]:
+        """Return the fitted input's log interval bounds and weights.
+
+        Returns:
+            tuple[NDArray[np.floating], NDArray[np.floating], NDArray[np.floating]]:
+                Lower bounds, upper bounds, and observation weights.
+        """
         return cast(
             tuple[
                 NDArray[np.floating],
@@ -86,8 +106,12 @@ class GenerateReport:
 
     def to_text(self, label: str | None = None, verbose: bool = False) -> str:
         """
-        Produce the exact text representation currently created inside the GUI.
-        `label` is optional (e.g., column name or 'GLOBAL FIT').
+        Args:
+            label (str | None): Optional heading such as a column name.
+            verbose (bool): Whether to include model summary details.
+
+        Returns:
+            str: Formatted ECOFF and component summary.
         """
         lines = []
 
@@ -119,12 +143,22 @@ class GenerateReport:
 
 
     def write_out(self, path: str) -> None:
+        """Write the text report to a file.
+
+        Args:
+            path (str): Destination file path.
+        """
         with open(path, "w") as f:
             f.write(self.to_text())
 
         print(f"\nResults saved to: {path}")
 
     def save_pdf(self, outfile: str) -> None:
+        """Save the report as a single-page PDF.
+
+        Args:
+            outfile (str): Destination PDF path.
+        """
         with PdfPages(outfile) as pdf:
             fig = self._make_pdf()
             pdf.savefig(fig)
@@ -133,6 +167,14 @@ class GenerateReport:
         print(f"PDF report saved to: {outfile}")
 
     def _make_pdf(self, title: Optional[str] = None) -> Figure:
+        """Create a figure containing the distribution plot and text report.
+
+        Args:
+            title (Optional[str]): Optional plot title and report label.
+
+        Returns:
+            Figure: Matplotlib figure for the report page.
+        """
         fig, (ax_plot, ax_text) = plt.subplots(
             nrows=1,
             ncols=2,
@@ -182,6 +224,9 @@ class GenerateReport:
     def _format_model_summary(self) -> list[str]:
         """
         Format a structured model summary from the fitter, if available.
+
+        Returns:
+            list[str]: Formatted summary lines, or an unavailable notice.
         """
         if not hasattr(self.fitter, "model_summary"):
             return ["  (model summary unavailable)"]
@@ -210,9 +255,11 @@ class CombinedReport:
         individual_reports: Dict[str, GenerateReport],
     ) -> None:
         """
-        outfile: PDF filename (for save_pdf)
-        global_report: GenerateReport instance
-        individual_reports: dict {column_name: GenerateReport}
+        Args:
+            outfile (str): Destination path for the combined report.
+            global_report (GenerateReport): Report for aggregate observations.
+            individual_reports (Dict[str, GenerateReport]): Reports keyed by
+                input column name.
         """
         self.outfile = outfile
         self.global_report = global_report
@@ -225,6 +272,9 @@ class CombinedReport:
         - Individual fit summaries
 
         Uses GenerateReport.to_text() for formatting consistency.
+
+        Returns:
+            None
         """
         lines: list[str] = []
 
@@ -246,6 +296,11 @@ class CombinedReport:
         
 
     def save_pdf(self) -> None:
+        """Write the global and individual reports to a multi-page PDF.
+
+        Returns:
+            None
+        """
         from matplotlib.backends.backend_pdf import PdfPages
 
         with PdfPages(self.outfile) as pdf:
