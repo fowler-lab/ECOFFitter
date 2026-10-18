@@ -13,7 +13,7 @@ from ecoff_fitter.report import GenerateReport, CombinedReport
 from ecoff_fitter.defence import validate_output_path
 from ecoff_fitter.utils import read_multi_obs_input
 from unittest.mock import MagicMock, patch
-
+from ecoff_fitter.workflow import run_ecoff_analysis
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -59,10 +59,20 @@ def build_parser() -> argparse.ArgumentParser:
         help="boundary support for censored data handling (None to disable).",
     )
     parser.add_argument(
+        "--density",
+        action="store_true",
+        help="Plot MIC distribution as density rather than counts.",
+    )
+    parser.add_argument(
         "--percentile",
         type=float,
         default=99.0,
         help="Percentile to calculate the ECOFF (0–100).",
+    )
+    parser.add_argument(
+        "--fit_individual",
+        action="store_true",
+        help="Fit individual populations in addition to the aggregate fit.",
     )
     parser.add_argument(
         "--outfile",
@@ -78,78 +88,58 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Optional[List[str]] = None) -> None:
-    """Main entry point for the ECOFFitter CLI."""
+    """Run the command-line interface.
+
+    Args:
+        argv (Optional[List[str]]): Argument list to parse; defaults to the
+            process command line.
+    """
     parser = build_parser()
     args = parser.parse_args(argv)
 
     try:
-
-        data_dict = read_multi_obs_input(args.input)
-        df_global = data_dict['global']
-        df_individual = data_dict['individual']
-
-        global_fitter = ECOFFitter(
-            input=df_global,
+        run = run_ecoff_analysis(
+            args.input,
             params=args.params,
+            dilution_factor=args.dilution_factor,
             distributions=args.distributions,
             boundary_support=args.boundary_support,
-            dilution_factor=args.dilution_factor
+            percentile=args.percentile,
+            fit_individual=args.fit_individual,
+            density=args.density,
         )
 
-        global_result = global_fitter.generate(percentile=args.percentile)
-
-        individual_results = {}
-        for col, subdf in df_individual.items():
-
-            fitter = ECOFFitter(
-                input=subdf,
-                params=args.params,
-                dilution_factor=args.dilution_factor,
-                distributions=args.distributions,
-                boundary_support=args.boundary_support,
-            )
-
-            result = fitter.generate(percentile=args.percentile)
-            individual_results[col] = (fitter, result)
-
         text = "\n\nECOFF RESULTS\n=====================================\n\n"
+        text += run.global_report.to_text("GLOBAL FIT", verbose=args.verbose)
 
-        global_report = GenerateReport.from_fitter(global_fitter, global_result)
-
-        if len(individual_results) > 1:
-            text += global_report.to_text("GLOBAL FIT", verbose=args.verbose)
+        if run.individual_reports:
             text += "\nINDIVIDUAL FITS:\n-------------------------------------\n"
+            for name, report in run.individual_reports.items():
+                text += report.to_text(label=name, verbose=args.verbose)
 
-        # Individual fits
-        for name, (fitter, result) in individual_results.items():
-            rep = GenerateReport.from_fitter(fitter, result)
-            text += rep.to_text(label=name, verbose=args.verbose)       
-        
         if args.outfile:
             validate_output_path(args.outfile)
-            if len(individual_results.keys())==1:
-                
+
+            if not run.individual_reports:
                 if args.outfile.endswith(".pdf"):
-                    global_report.save_pdf(args.outfile)
+                    run.global_report.save_pdf(args.outfile)
                 else:
-                    global_report.write_out(args.outfile)
-            elif (len(individual_results.keys()))>1:
-                # Build section reports
-                indiv_reports = {
-                    name: GenerateReport.from_fitter(fitter, result)
-                    for name, (fitter, result) in individual_results.items()
-                }
-                # Build combined PDF
-                combined = CombinedReport(args.outfile, global_report, indiv_reports)
+                    run.global_report.write_out(args.outfile)
+            else:
+                combined = CombinedReport(
+                    args.outfile,
+                    run.global_report,
+                    run.individual_reports,
+                )
                 if args.outfile.endswith(".pdf"):
                     combined.save_pdf()
                 else:
                     combined.write_out()
 
-        print (text)
+        print(text)
 
     except Exception as e:
-        print ('Error', str(e))
+        print("Error", str(e))
 
 
 if __name__ == "__main__":

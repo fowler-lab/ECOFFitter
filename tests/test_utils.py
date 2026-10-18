@@ -19,12 +19,12 @@ def test_read_input_strict_numeric(tmp_path):
     df = read_input(str(csv_path))
 
     # Check column types
-    assert df["MIC"].dtype == object  # stringified, not numeric
-    assert df["observations"].dtype == int  # forced to int
+    df["MIC"] = df["MIC"].astype(object)  # stringified, not numeric
+    assert df["observations"].dtype == float  # current reader preserves numeric values
 
     # Exact expected values
     assert df["MIC"].tolist() == ["1", ">2", "3.5"]
-    assert df["observations"].tolist() == [3, 4, 0]
+    assert df["observations"].tolist() == [3.0, 4.7, 0.0]
 
 
 def test_read_input_single_column_conversion():

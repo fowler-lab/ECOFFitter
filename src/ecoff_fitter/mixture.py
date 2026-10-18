@@ -12,7 +12,7 @@ class MixtureModel:
     Expectation–Maximization (EM) followed by optional joint refinement.
 
     Workflow:
-        1. K-means clustering on interval midpoints for initial paramaters.
+        1. K-means clustering on interval midpoints for initial parameters.
         2. EM iteratively updates responsibilities and component parameters.
         3. Optional refinement using mixture likelihood via L-BFGS-B.
     """
@@ -47,11 +47,13 @@ class MixtureModel:
             - π_k: Weighted cluster proportions.
 
         Args:
-            y_low (array-like): Lower bounds of log2 MIC intervals.
-            y_high (array-like): Upper bounds of log2 MIC intervals.
-            weights (array-like): Observation weights for each interval.
+            y_low (NDArray[np.floating] | list[float]): Lower bounds of
+                log-dilution MIC intervals.
+            y_high (NDArray[np.floating] | list[float]): Upper bounds of
+                log-dilution MIC intervals.
+            weights (NDArray[np.floating] | list[float]): Weight for each
+                interval.
             distributions (int): Number of mixture components (K).
-
         """
         self.K = distributions
 
@@ -146,9 +148,15 @@ class MixtureModel:
 
         Returns:
             self: Fitted parameters, log-likelihood, and convergence info.
+
+        Notes:
+            The EM loop records the final iteration count, convergence flag,
+            log-likelihood, and packed parameter vector on this instance.
         """
 
         N = len(self.y_low)
+
+        MIN_SIGMA=0.25 #stop component width collapsing
 
         converged = False
 
@@ -184,7 +192,8 @@ class MixtureModel:
                 fit_k.fit()
                 mu_k, log_sigma_k = fit_k.result.x
                 new_mus[k] = mu_k
-                new_sigmas[k] = np.exp(log_sigma_k)
+                new_sigmas[k] = max(np.exp(log_sigma_k), MIN_SIGMA)
+
 
             self.mus, self.sigmas = new_mus, new_sigmas
 
@@ -230,16 +239,31 @@ class MixtureModel:
 
         Returns:
             self: Updated parameter vector and mixture component estimates.
+
+        Notes:
+            The joint objective is the weighted negative log-likelihood of
+            the observed intervals under the mixture.
         """
 
         y_low = np.asarray(self.y_low, float)
         y_high = np.asarray(self.y_high, float)
         weights = np.asarray(self.weights, float)
 
+        MIN_SIGMA=0.25 #stop component width collapsing
+
         def unpack_params(
             params: NDArray[np.floating],
         ) -> Tuple[NDArray[np.floating], NDArray[np.floating], NDArray[np.floating]]:
-            """Convert flat parameter vector into mus, sigmas, pis."""
+            """Convert a flat parameter vector into means, scales, and weights.
+
+            Args:
+                params (NDArray[np.floating]): Means, log-scales, and free
+                    mixture logits concatenated into one vector.
+
+            Returns:
+                tuple[NDArray[np.floating], NDArray[np.floating], NDArray[np.floating]]:
+                    Component means, scales, and normalized mixture weights.
+            """
             mus = params[: self.K]
             sigmas = np.exp(params[self.K : 2 * self.K])
 
@@ -252,6 +276,14 @@ class MixtureModel:
             return mus, sigmas, pis
 
         def neg_log_likelihood(params: NDArray[np.floating]) -> float:
+            """Compute the weighted negative interval mixture log-likelihood.
+
+            Args:
+                params (NDArray[np.floating]): Flat mixture parameter vector.
+
+            Returns:
+                float: Negative weighted log-likelihood.
+            """
             mus, sigmas, pis = unpack_params(params)
 
             # P(interval | component k)
@@ -268,7 +300,17 @@ class MixtureModel:
 
             return float(-np.sum(weights * np.log(mix)))
 
-        res = minimize(neg_log_likelihood, self.x, method="L-BFGS-B")
+        bounds = (
+            [(None, None)] * self.K
+            + [(np.log(MIN_SIGMA), None)] * self.K
+            + [(None, None)] * (self.K - 1)
+        )
+        res = minimize(
+            neg_log_likelihood,
+            self.x,
+            method="L-BFGS-B",
+            bounds=bounds,
+        )
         self.x = res.x
         self.mus, self.sigmas, self.pis = unpack_params(self.x)
 

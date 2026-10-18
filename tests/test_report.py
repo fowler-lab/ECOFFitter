@@ -13,11 +13,16 @@ def mock_loader(monkeypatch):
     Ensures CLI never touches the filesystem and always receives
     one global dataset and zero individual datasets (simplest case).
     """
-    monkeypatch.setattr(
-        cli,
-        "read_multi_obs_input",
-        lambda _: {"global": MagicMock(), "individual": {}},
-    )
+    mock = MagicMock(side_effect=lambda *args, **kwargs: _mock_run())
+    monkeypatch.setattr(cli, "run_ecoff_analysis", mock)
+    return mock
+
+
+def _mock_run():
+    run = MagicMock()
+    run.global_report.to_text.return_value = "GLOBAL FIT\n"
+    run.individual_reports = {}
+    return run
 
 
 @pytest.fixture
@@ -70,22 +75,24 @@ def test_parser_accepts_basic_args():
 def test_main_runs_with_minimal_args(mock_loader, mock_fitter, mock_report):
     cli.main(["--input", "fake.csv"])
 
-    # ECOFFitter MUST be called at least once
-    assert cli.ECOFFitter.called
-
-    # global fitter generate() must run once
-    mock_fitter.generate.assert_called_once_with(percentile=99.0)
-
-    # one GenerateReport created
-    cli.GenerateReport.from_fitter.assert_called()
+    mock_loader.assert_called_once_with(
+        "fake.csv",
+        params=None,
+        dilution_factor=2,
+        distributions=1,
+        boundary_support=1,
+        percentile=99.0,
+        fit_individual=False,
+        density=False,
+    )
 
 
 
 def test_main_invalid_percentile_prints_error(mock_loader, monkeypatch, capsys):
-    mock_fitter = MagicMock()
-    mock_fitter.generate.side_effect = AssertionError("percentile must be between 0 and 100")
+    def fail_run(*args, **kwargs):
+        raise AssertionError("percentile must be between 0 and 100")
 
-    monkeypatch.setattr(cli, "ECOFFitter", MagicMock(return_value=mock_fitter))
+    monkeypatch.setattr(cli, "run_ecoff_analysis", MagicMock(side_effect=fail_run))
 
     cli.main(["--input", "data.csv", "--percentile", "200"])
 

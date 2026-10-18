@@ -1,36 +1,51 @@
-from typing import Callable
-
-
 """
 ECOFF Fitter — Estimate epidemiological cutoff values (ECOFFs)
 using interval regression on MIC (Minimum Inhibitory Concentration) data.
 
-Main API:
-    from ecoff_fitter import ECOFFitter
-    fitter = ECOFFitter(input="mic_data.csv")
-    ecoff, z, mu, sigma, model = fitter.generate(percentile=99)
+Single-fit API
+--------------
+from ecoff_fitter import ECOFFitter
 
-CLI:
-    python -m ecoff_fitter --input mic_data.csv --percentile 99
+fitter = ECOFFitter(input="mic_data.csv")
+result = fitter.generate(percentile=99)
+
+Multi-fit / workflow API
+------------------------
+from ecoff_fitter import run_ecoff_analysis
+
+run = run_ecoff_analysis(
+    "mic_data.csv",
+    fit_individual=True,
+)
+
+print(run.global_report.to_text())
+
+CLI
+---
+python -m ecoff_fitter --input mic_data.csv
 """
 
-from importlib.metadata import version, PackageNotFoundError
+from importlib.metadata import PackageNotFoundError, version
 
-# --- Public API imports ---
 from .core import ECOFFitter
+from .workflow import ECOFFRun, run_ecoff_analysis
 
-__all__: list[str] = ["ECOFFitter"]
+__all__ = [
+    "ECOFFitter",
+    "run_ecoff_analysis",
+    "ECOFFRun",
+]
 
-# --- Optional: version handling ---
 try:
     __version__ = version("ecoff_fitter")
 except PackageNotFoundError:
     __version__ = "0.0.0"
 
-# --- Optional: CLI hook for `python -m ecoff_fitter` ---
+
 def main() -> None:
-    """Entry point for running ecoff_fitter as a module (CLI)."""
+    """Entry point for `python -m ecoff_fitter`."""
     from .cli import main as cli_main
+
     cli_main()
 
 
