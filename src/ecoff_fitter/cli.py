@@ -33,11 +33,18 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--method",
+        choices=("ecoffitter", "ecoffinder"),
+        default="ecoffitter",
+        help="Fitting method to use (default: ECOFFitter).",
+    )
+    parser.add_argument(
         "--params",
         help=(
-            "Optional path to a parameter file (YAML, TXT, or key=value list) "
-            "defining dilution_factor, distributions, and boundary_support. "
-            "Overrides manual CLI options if provided."
+            "Optional YAML or TXT parameter file. ECOFFitter accepts "
+            "dilution_factor, distributions, boundary_support, and percentile; "
+            "ECOFFinder also accepts detection_level, cumulative, first_best, "
+            "and intervals. File values override matching options."
         ),
     )
     parser.add_argument(
@@ -50,7 +57,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--distributions",
         type=int,
         default=1,
-        help="Number of normal components to fit.",
+        help="Number of normal components to fit with ECOFFitter; ECOFFinder uses one WT range.",
     )
     parser.add_argument(
         "--boundary_support",
@@ -62,6 +69,31 @@ def build_parser() -> argparse.ArgumentParser:
         "--density",
         action="store_true",
         help="Plot MIC distribution as density rather than counts.",
+    )
+    parser.add_argument(
+        "--detection_level",
+        type=float,
+        default=10.0,
+        help="Minimum ECOFFinder mode size as a percentage of observations.",
+    )
+    parser.add_argument(
+        "--cumulative",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            "Fit cumulative frequencies with ECOFFinder; use --no-cumulative "
+            "for per-dilution frequencies."
+        ),
+    )
+    parser.add_argument(
+        "--first_best",
+        action="store_true",
+        help="Stop ECOFFinder range search after its score starts increasing.",
+    )
+    parser.add_argument(
+        "--intervals",
+        action="store_true",
+        help="Refit ECOFFinder's selected range with interval regression.",
     )
     parser.add_argument(
         "--percentile",
@@ -98,16 +130,24 @@ def main(argv: Optional[List[str]] = None) -> None:
     args = parser.parse_args(argv)
 
     try:
-        run = run_ecoff_analysis(
-            args.input,
-            params=args.params,
-            dilution_factor=args.dilution_factor,
-            distributions=args.distributions,
-            boundary_support=args.boundary_support,
-            percentile=args.percentile,
-            fit_individual=args.fit_individual,
-            density=args.density,
-        )
+        workflow_args = {
+            "params": args.params,
+            "dilution_factor": args.dilution_factor,
+            "distributions": args.distributions,
+            "boundary_support": args.boundary_support,
+            "percentile": args.percentile,
+            "fit_individual": args.fit_individual,
+            "density": args.density,
+        }
+        if args.method == "ecoffinder":
+            workflow_args.update(
+                method=args.method,
+                detection_level=args.detection_level,
+                cumulative=args.cumulative,
+                first_best=args.first_best,
+                intervals=args.intervals,
+            )
+        run = run_ecoff_analysis(args.input, **workflow_args)
 
         text = "\n\nECOFF RESULTS\n=====================================\n\n"
         text += run.global_report.to_text("GLOBAL FIT", verbose=args.verbose)

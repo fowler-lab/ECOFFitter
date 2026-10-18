@@ -4,8 +4,11 @@ from typing import Any, Dict, Tuple, cast
 import numpy as np
 
 from ecoff_fitter.core import ECOFFitter
+from ecoff_fitter.ecoffinder_core import ECOFFinder
 from ecoff_fitter.report import GenerateReport
 from ecoff_fitter.utils import PreparedInput, prepare_input
+
+Fitter = ECOFFitter | ECOFFinder
 
 
 @dataclass
@@ -15,20 +18,20 @@ class ECOFFRun:
     Attributes:
         prepared (PreparedInput): Normalized global and individual input data.
         selected_k (int): Number of components selected for the global fit.
-        global_fitter (ECOFFitter): Fitted model for all observations.
+        global_fitter (Fitter): Fitted model for all observations.
         global_result (Tuple[Any, ...]): Global ECOFF and fitted parameters.
         global_report (GenerateReport): Report for the global fit.
-        individual_fits (Dict[str, Tuple[ECOFFitter, Tuple[Any, ...]]]):
+        individual_fits (Dict[str, Tuple[Fitter, Tuple[Any, ...]]]):
             Fitter and result for each individual input column.
         individual_reports (Dict[str, GenerateReport]): Reports for
             individual input columns.
     """
     prepared: PreparedInput
     selected_k: int
-    global_fitter: ECOFFitter
+    global_fitter: Fitter
     global_result: Tuple[Any, ...]
     global_report: GenerateReport
-    individual_fits: Dict[str, Tuple[ECOFFitter, Tuple[Any, ...]]]
+    individual_fits: Dict[str, Tuple[Fitter, Tuple[Any, ...]]]
     individual_reports: Dict[str, GenerateReport]
 
 
@@ -47,6 +50,11 @@ def run_ecoff_analysis(
     density: bool = False,
     options: dict[str, Any] | None = None,
     sheet_name: str | None = None,
+    method: str = "ecoffitter",
+    detection_level: float = 10.0,
+    cumulative: bool = True,
+    first_best: bool = False,
+    intervals: bool = False,
 ) -> ECOFFRun:
     """Fit ECOFF models to aggregate data and optionally each input group.
 
@@ -73,13 +81,61 @@ def run_ecoff_analysis(
         options (dict[str, Any] | None): Solver and EM options passed to fits.
         sheet_name (str | None): Worksheet to read when ``data`` is an Excel
             file.
+        method (str): Fitting method, either ``"ecoffitter"`` or
+            ``"ecoffinder"``.
+        detection_level (float): Minimum mode size as a percentage of all
+            observations when using ECOFFinder.
+        cumulative (bool): Whether ECOFFinder fits cumulative frequencies.
+        first_best (bool): Whether ECOFFinder stops after its score begins to
+            increase from its best value.
+        intervals (bool): Whether ECOFFinder refits its selected range using
+            interval regression.
 
     Returns:
         ECOFFRun: Global fit, optional individual fits, and their reports.
     """
     prepared = prepare_input(data, sheet_name=sheet_name)
 
-    if distributions == "auto":
+    if method not in {"ecoffitter", "ecoffinder"}:
+        raise ValueError("method must be 'ecoffitter' or 'ecoffinder'.")
+
+    if method == "ecoffinder":
+        if distributions != 1:
+            raise ValueError(
+                "ECOFFinder fits one wild-type distribution; "
+                "distributions must be 1."
+            )
+
+    def fit_one(input_df: Any) -> tuple[Fitter, Tuple[Any, ...]]:
+        if method == "ecoffinder":
+            fitter = ECOFFinder(
+                input=input_df,
+                dilution_factor=dilution_factor,
+                detection_level=detection_level,
+                cumulative=cumulative,
+                first_best=first_best,
+                intervals=intervals,
+                boundary_support=boundary_support,
+                params=params,
+                percentile=percentile,
+            )
+            result = fitter.generate(options=options)
+        else:
+            fitter = ECOFFitter(
+                input=input_df,
+                params=params,
+                dilution_factor=dilution_factor,
+                distributions=cast(int, distributions),
+                boundary_support=boundary_support,
+            )
+            result = fitter.generate(percentile=percentile, options=options)
+        setattr(fitter, "density", density)
+        return fitter, result
+
+    if method == "ecoffinder":
+        global_fitter, global_result = fit_one(prepared.global_df)
+        k = 1
+    elif distributions == "auto":
         k, score, global_fitter, global_result = select_best_k(
             data,
             dilution_factor=dilution_factor,
@@ -95,26 +151,19 @@ def run_ecoff_analysis(
 
     else:
         fixed_distributions = cast(int, distributions)
-        global_fitter = ECOFFitter(
-            input=prepared.global_df,
-            params=params,
-            dilution_factor=dilution_factor,
-            distributions=fixed_distributions,
-            boundary_support=boundary_support,
-        )
-        global_result = global_fitter.generate(percentile=percentile, options=options)
+        global_fitter, global_result = fit_one(prepared.global_df)
         k = fixed_distributions
-
-    setattr(global_fitter, "density", density)
 
     global_report = GenerateReport.from_fitter(global_fitter, global_result)
 
-    individual_fits: Dict[str, Tuple[ECOFFitter, Tuple[Any, ...]]] = {}
+    individual_fits: Dict[str, Tuple[Fitter, Tuple[Any, ...]]] = {}
     individual_reports: Dict[str, GenerateReport] = {}
 
     if fit_individual:
         for name, subdf in prepared.individual_dfs.items():
-            if distributions == "auto":
+            if method == "ecoffinder":
+                fitter, result = fit_one(subdf)
+            elif distributions == "auto":
                 _, _, fitter, result = select_best_k(
                     subdf,
                     dilution_factor=dilution_factor,
@@ -127,16 +176,8 @@ def run_ecoff_analysis(
                     options=options,
                 )
             else:
-                fitter = ECOFFitter(
-                    input=subdf,
-                    params=params,
-                    dilution_factor=dilution_factor,
-                    distributions=cast(int, distributions),
-                    boundary_support=boundary_support,
-                )
-                result = fitter.generate(percentile=percentile, options=options)
+                fitter, result = fit_one(subdf)
 
-            setattr(fitter, "density", density)
             individual_fits[name] = (fitter, result)
             individual_reports[name] = GenerateReport.from_fitter(fitter, result)
 

@@ -28,10 +28,12 @@ python -m ecoff_fitter --input mic_data.csv
 from importlib.metadata import PackageNotFoundError, version
 
 from .core import ECOFFitter
+from .ecoffinder_core import ECOFFinder
 from .workflow import ECOFFRun, run_ecoff_analysis
 
 __all__ = [
     "ECOFFitter",
+    "ECOFFinder",
     "run_ecoff_analysis",
     "ECOFFRun",
 ]

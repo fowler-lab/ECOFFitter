@@ -134,6 +134,27 @@ def validate_params(
         raise ValueError("boundary_support must be a non-negative integer or None.")
 
 
+def validate_ecoffinder_params(
+    detection_level: float,
+    cumulative: bool,
+    first_best: bool,
+    intervals: bool,
+    percentile: float,
+) -> None:
+    """Validate ECOFFinder-specific settings and the requested percentile."""
+    if not isinstance(detection_level, (int, float)) or not 0 <= detection_level <= 100:
+        raise ValueError("detection_level must be between 0 and 100.")
+    for name, value in (
+        ("cumulative", cumulative),
+        ("first_best", first_best),
+        ("intervals", intervals),
+    ):
+        if not isinstance(value, bool):
+            raise ValueError(f"{name} must be a boolean.")
+    if not isinstance(percentile, (int, float)) or not 0 < percentile < 100:
+        raise ValueError("percentile must be between 0 and 100.")
+
+
 def validate_output_path(path: str) -> bool:
     """Validate an output path and its containing directory.
 

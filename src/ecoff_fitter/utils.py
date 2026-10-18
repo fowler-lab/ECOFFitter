@@ -181,9 +181,52 @@ def read_params(
     Raises:
         FileNotFoundError: If the specified file does not exist.
         ValueError: If file type is unsupported.
-        AssertionError: If ``params`` is not a dictionary after path handling.
+        ValueError: If ``params`` is not a mapping after path handling.
     """
 
+    params = _load_params_mapping(params)
+
+    # --- Apply defaults for any missing keys ---
+    dilution_factor = params.get("dilution_factor", dflt_dilution)
+    distributions = params.get("distributions", dflt_dists)
+    boundary_support = params.get("boundary_support", dflt_tails)
+    percentile = params.get("percentile", 99)
+
+    return dilution_factor, distributions, boundary_support, percentile
+
+
+def read_ecoffinder_params(
+    params: str | dict[str, Any],
+    dflt_dilution: int,
+    dflt_detection: float,
+    dflt_cumulative: bool,
+    dflt_first_best: bool,
+    dflt_intervals: bool,
+    dflt_tails: int | None,
+    dflt_percentile: float,
+) -> tuple[int, Any, float, bool, bool, bool, int | None, float]:
+    """Read common and ECOFFinder-specific settings from a config source.
+
+    Supported keys are ``dilution_factor``, ``distributions``,
+    ``detection_level``, ``cumulative``, ``first_best``, ``intervals``,
+    ``boundary_support``, and ``percentile``. ``distributions`` is included
+    so callers can reject mixture settings that ECOFFinder cannot use.
+    """
+    values = _load_params_mapping(params)
+    return (
+        values.get("dilution_factor", dflt_dilution),
+        values.get("distributions", 1),
+        values.get("detection_level", dflt_detection),
+        values.get("cumulative", dflt_cumulative),
+        values.get("first_best", dflt_first_best),
+        values.get("intervals", dflt_intervals),
+        values.get("boundary_support", dflt_tails),
+        values.get("percentile", dflt_percentile),
+    )
+
+
+def _load_params_mapping(params: str | dict[str, Any]) -> dict[str, Any]:
+    """Load a parameter mapping and coerce known values in TXT files."""
     if isinstance(params, str):
         if not os.path.exists(params):
             raise FileNotFoundError(f"Parameter file not found: {params}")
@@ -203,35 +246,38 @@ def read_params(
                     if not line or line.startswith("#"):
                         continue
                     key, val = [x.strip() for x in line.split("=", 1)]
-                    if key == "dilution_factor":
+                    if key in {"dilution_factor", "distributions"}:
                         parsed[key] = int(val)
                     elif key == "boundary_support":
                         if val.lower() == "none":
                             parsed[key] = None
                         else:
                             parsed[key] = int(val)
-                    elif key == "distributions":
-                        parsed[key] = int(val)
                     elif key == "percentile":
                         parsed[key] = float(val)
+                    elif key == "detection_level":
+                        parsed[key] = float(val)
+                    elif key in {"cumulative", "first_best", "intervals"}:
+                        parsed[key] = _parse_bool(val)
                     else:
                         parsed[key] = val
             params = parsed
         else:
             raise ValueError(f"Unsupported file type: {ext}")
 
-    else:
-        assert isinstance(
-            params, dict
-        ), "params must either be a file path or a dictionary"
+    if not isinstance(params, dict):
+        raise ValueError("params must be a parameter file path or a dictionary.")
+    return params
 
-    # --- Apply defaults for any missing keys ---
-    dilution_factor = params.get("dilution_factor", dflt_dilution)
-    distributions = params.get("distributions", dflt_dists)
-    boundary_support = params.get("boundary_support", dflt_tails)
-    percentile = params.get("percentile", 99)
 
-    return dilution_factor, distributions, boundary_support, percentile
+def _parse_bool(value: str) -> bool:
+    """Parse a boolean value used in a text parameter file."""
+    normalized = value.strip().lower()
+    if normalized in {"true", "yes", "1"}:
+        return True
+    if normalized in {"false", "no", "0"}:
+        return False
+    raise ValueError(f"Expected a boolean value, got {value!r}.")
 
 
 def read_multi_obs_input(
