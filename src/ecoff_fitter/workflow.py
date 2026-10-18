@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Tuple, cast
 
 import numpy as np
 
@@ -94,17 +94,18 @@ def run_ecoff_analysis(
         )
 
     else:
+        fixed_distributions = cast(int, distributions)
         global_fitter = ECOFFitter(
             input=prepared.global_df,
             params=params,
             dilution_factor=dilution_factor,
-            distributions=distributions,
+            distributions=fixed_distributions,
             boundary_support=boundary_support,
         )
         global_result = global_fitter.generate(percentile=percentile, options=options)
-        k = distributions
+        k = fixed_distributions
 
-    global_fitter.density = density
+    setattr(global_fitter, "density", density)
 
     global_report = GenerateReport.from_fitter(global_fitter, global_result)
 
@@ -130,12 +131,12 @@ def run_ecoff_analysis(
                     input=subdf,
                     params=params,
                     dilution_factor=dilution_factor,
-                    distributions=distributions,
+                    distributions=cast(int, distributions),
                     boundary_support=boundary_support,
                 )
                 result = fitter.generate(percentile=percentile, options=options)
 
-            fitter.density = density
+            setattr(fitter, "density", density)
             individual_fits[name] = (fitter, result)
             individual_reports[name] = GenerateReport.from_fitter(fitter, result)
 
@@ -258,4 +259,5 @@ def select_best_k(
 
         best = (k, score, fitter, result)
 
+    assert best is not None
     return best

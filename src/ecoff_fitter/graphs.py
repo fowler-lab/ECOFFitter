@@ -81,17 +81,13 @@ def plot_mic_distribution(
     finite_high_vals = high_log[np.isfinite(high_log)]
     finite_low_vals = low_log[np.isfinite(low_log)]
 
-    finite_high = (
-        finite_high_vals.max()
-        if len(finite_high_vals)
-        else 0
-    )
+    finite_high = 0.0
+    if finite_high_vals.size > 0:
+        finite_high = float(np.max(finite_high_vals))
 
-    finite_low = (
-        finite_low_vals.min()
-        if len(finite_low_vals)
-        else 0
-    )
+    finite_low = 0.0
+    if finite_low_vals.size > 0:
+        finite_low = float(np.min(finite_low_vals))
 
     # ---------------------------------------------------
     # Determine local plotting bounds
