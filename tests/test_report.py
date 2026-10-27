@@ -26,14 +26,6 @@ def _mock_run():
 
 
 @pytest.fixture
-def mock_fitter(monkeypatch):
-    mock = MagicMock(name="ECOFFitterMock")
-    mock.generate.return_value = (4.0, 2.0, 1.0, 0.5)
-    monkeypatch.setattr(cli, "ECOFFitter", MagicMock(return_value=mock))
-    return mock
-
-
-@pytest.fixture
 def mock_report(monkeypatch):
     report_instance = MagicMock(name="ReportInstance")
     report_cls = MagicMock()
@@ -72,7 +64,7 @@ def test_parser_accepts_basic_args():
 
 # CLI integration tests
 
-def test_main_runs_with_minimal_args(mock_loader, mock_fitter, mock_report):
+def test_main_runs_with_minimal_args(mock_loader, mock_report):
     cli.main(["--input", "fake.csv"])
 
     mock_loader.assert_called_once_with(
@@ -84,6 +76,12 @@ def test_main_runs_with_minimal_args(mock_loader, mock_fitter, mock_report):
         percentile=99.0,
         fit_individual=False,
         density=False,
+        fitter="interval_regression",
+        range_search=None,
+        detection_level=10.0,
+        cumulative=True,
+        first_best=False,
+        park_from_mic=None,
     )
 
 

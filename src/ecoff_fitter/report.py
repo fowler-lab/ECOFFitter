@@ -24,20 +24,18 @@ class GenerateReport:
 
     @classmethod
     def from_fitter(cls, fitter: Any, result: Tuple[Any, ...]) -> "GenerateReport":
-        """
-        Construct a GenerateReport from an ECOFFitter and generate() output.
+        """Construct a GenerateReport from a fitted model and generate() output.
 
         result = (ecoff, z_percentile, mu, sigma)   # single
         result = (ecoff, z_percentile, mu1, sigma1, ..., muK, sigmaK) # mixture
 
         Args:
-            fitter (Any): Fitted ECOFFitter instance.
+            fitter (Any): Fitted model instance.
             result (Tuple[Any, ...]): Result returned by
-                :meth:`ECOFFitter.generate`.
+                :meth:`IntervalRegressionFitter.generate`.
 
         Returns:
-            GenerateReport: Report initialized with ECOFF values and fitter.
-        """
+            GenerateReport: Report initialized with ECOFF values and fitter."""
 
         # Percentiles derived from fitter
         z0 = fitter.compute_ecoff(percentile=99)[0]
@@ -55,32 +53,74 @@ class GenerateReport:
 
     @property
     def distributions(self) -> int:
-        """Return the number of fitted mixture components."""
+        """Return the number of fitted mixture components.
+
+        Args:
+            None.
+
+        Returns:
+            int: Result of the operation."""
+
         return cast(int, self.fitter.distributions)
 
     @property
     def dilution_factor(self) -> float:
-        """Return the MIC dilution factor used by the fitter."""
+        """Return the MIC dilution factor used by the fitter.
+
+        Args:
+            None.
+
+        Returns:
+            float: Result of the operation."""
+
         return cast(float, self.fitter.dilution_factor)
 
     @property
     def mus(self) -> NDArray[np.floating]:
-        """Return fitted component means in log-dilution space."""
+        """Return fitted component means in log-dilution space.
+
+        Args:
+            None.
+
+        Returns:
+            NDArray[np.floating]: Result of the operation."""
+
         return cast(NDArray[np.floating], self.fitter.mus_)
 
     @property
     def sigmas(self) -> NDArray[np.floating]:
-        """Return fitted component standard deviations."""
+        """Return fitted component standard deviations.
+
+        Args:
+            None.
+
+        Returns:
+            NDArray[np.floating]: Result of the operation."""
+
         return cast(NDArray[np.floating], self.fitter.sigmas_)
 
     @property
     def pis(self) -> Optional[NDArray[np.floating]]:
-        """Return component weights when available."""
+        """Return component weights when available.
+
+        Args:
+            None.
+
+        Returns:
+            Optional[NDArray[np.floating]]: Result of the operation."""
+
         return getattr(self.fitter, "pis_", None)
 
     @property
     def model(self) -> Any:
-        """Return the fitted underlying model object when available."""
+        """Return the fitted underlying model object when available.
+
+        Args:
+            None.
+
+        Returns:
+            Any: Result of the operation."""
+
         return getattr(self.fitter, "model_", None)
 
 
@@ -93,7 +133,10 @@ class GenerateReport:
         Returns:
             tuple[NDArray[np.floating], NDArray[np.floating], NDArray[np.floating]]:
                 Lower bounds, upper bounds, and observation weights.
-        """
+
+        Args:
+            None."""
+
         return cast(
             tuple[
                 NDArray[np.floating],
@@ -105,14 +148,12 @@ class GenerateReport:
 
 
     def to_text(self, label: str | None = None, verbose: bool = False) -> str:
-        """
-        Args:
+        """Args:
             label (str | None): Optional heading such as a column name.
             verbose (bool): Whether to include model summary details.
 
         Returns:
-            str: Formatted ECOFF and component summary.
-        """
+            str: Formatted ECOFF and component summary."""
         lines = []
 
         if label:
@@ -121,7 +162,7 @@ class GenerateReport:
 
         lines.append(f"  ECOFF: {self.ecoff:.4f}")
         # z-values stored in self.z are ECOFF values for 99, 97.5, 95 percentiles
-        lines.append(f"  log scale: {np.log2(self.ecoff):.4f}\n")  
+        lines.append(f"  log scale: {np.log2(self.ecoff):.4f}\n")
 
         # Mixture components
         for i, (mu, sigma) in enumerate(zip(self.mus, self.sigmas), start=1):
@@ -147,7 +188,10 @@ class GenerateReport:
 
         Args:
             path (str): Destination file path.
-        """
+
+        Returns:
+            None: Result of the operation."""
+
         with open(path, "w") as f:
             f.write(self.to_text())
 
@@ -158,7 +202,10 @@ class GenerateReport:
 
         Args:
             outfile (str): Destination PDF path.
-        """
+
+        Returns:
+            None: Result of the operation."""
+
         with PdfPages(outfile) as pdf:
             fig = self._make_pdf()
             pdf.savefig(fig)
@@ -173,8 +220,7 @@ class GenerateReport:
             title (Optional[str]): Optional plot title and report label.
 
         Returns:
-            Figure: Matplotlib figure for the report page.
-        """
+            Figure: Matplotlib figure for the report page."""
         fig, (ax_plot, ax_text) = plt.subplots(
             nrows=1,
             ncols=2,
@@ -220,14 +266,16 @@ class GenerateReport:
 
         fig.tight_layout(rect=(0, 0, 1, 0.95))
         return fig
-    
+
     def _format_model_summary(self) -> list[str]:
-        """
-        Format a structured model summary from the fitter, if available.
+        """Format a structured model summary from the fitter, if available.
 
         Returns:
             list[str]: Formatted summary lines, or an unavailable notice.
-        """
+
+        Args:
+            None."""
+
         if not hasattr(self.fitter, "model_summary"):
             return ["  (model summary unavailable)"]
 
@@ -254,20 +302,21 @@ class CombinedReport:
         global_report: GenerateReport,
         individual_reports: Dict[str, GenerateReport],
     ) -> None:
-        """
-        Args:
+        """Args:
             outfile (str): Destination path for the combined report.
             global_report (GenerateReport): Report for aggregate observations.
             individual_reports (Dict[str, GenerateReport]): Reports keyed by
                 input column name.
-        """
+
+        Returns:
+            None: Result of the operation."""
+
         self.outfile = outfile
         self.global_report = global_report
         self.individual_reports = individual_reports
 
     def write_out(self) -> None:
-        """
-        Write a consolidated text report containing:
+        """Write a consolidated text report containing:
         - Global fit summary
         - Individual fit summaries
 
@@ -275,7 +324,10 @@ class CombinedReport:
 
         Returns:
             None
-        """
+
+        Args:
+            None."""
+
         lines: list[str] = []
 
         # ----- GLOBAL REPORT -----
@@ -293,14 +345,17 @@ class CombinedReport:
             f.write(text)
 
         print(f"\nCombined text report saved to: {self.outfile}")
-        
+
 
     def save_pdf(self) -> None:
         """Write the global and individual reports to a multi-page PDF.
 
         Returns:
             None
-        """
+
+        Args:
+            None."""
+
         from matplotlib.backends.backend_pdf import PdfPages
 
         with PdfPages(self.outfile) as pdf:

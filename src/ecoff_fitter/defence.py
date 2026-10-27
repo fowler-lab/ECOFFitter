@@ -6,17 +6,18 @@ import re
 
 
 def validate_input_source(input: str | DataFrame | dict[str, Any]) -> None:
-    """
-    Validate the input source for ECOFFitter.
+    """Validate the MIC input source.
 
     Args:
         input (str | DataFrame | dict[str, Any]): MIC and observation data or
             a path to an input file.
 
+    Returns:
+        None: Returns when the input source is structurally valid.
+
     Raises:
         FileNotFoundError: If the file does not exist.
-        ValueError: If the input type or required columns are invalid.
-    """
+        ValueError: If the input type or required columns are invalid."""
 
     if isinstance(input, pd.DataFrame):
         if not {"MIC", "observations"}.issubset(input.columns):
@@ -38,17 +39,18 @@ def validate_input_source(input: str | DataFrame | dict[str, Any]) -> None:
 def validate_params_source(
     params: dict[str, Any] | str | list[Any] | tuple[Any, ...] | DataFrame | Any | None,
 ) -> None:
-    """
-    Pre-validate the params argument before attempting to read it.
+    """Pre-validate the params argument before attempting to read it.
 
     Args:
         params (dict[str, Any] | str | list[Any] | tuple[Any, ...] | DataFrame | Any | None):
             Parameter mapping, path, or array-like value to validate.
 
+    Returns:
+        None: Returns when the parameter source type is supported.
+
     Raises:
         FileNotFoundError: If the provided file path does not exist.
-        ValueError: If params is not a supported type.
-    """
+        ValueError: If params is not a supported type."""
 
     if params is None:
         return
@@ -76,15 +78,16 @@ def validate_params_source(
 
 
 def validate_mic_data(df: DataFrame) -> None:
-    """
-    Validate MIC and observations columns.
+    """Validate MIC and observations columns.
 
     Args:
         df (DataFrame): Input MIC data.
 
+    Returns:
+        None: Returns when all MIC rows are valid.
+
     Raises:
-        ValueError: If MIC values are invalid or observation counts are negative.
-    """
+        ValueError: If MIC values are invalid or observation counts are negative."""
     if df.empty:
         raise ValueError("Input DataFrame is empty.")
 
@@ -107,8 +110,7 @@ def validate_mic_data(df: DataFrame) -> None:
 def validate_params(
     dilution_factor: int, distributions: int, boundary_support: int | None
 ) -> None:
-    """
-    Validate ECOFFitter configuration values.
+    """Validate fitting configuration values.
 
     Args:
         dilution_factor (int): The MIC dilution step.
@@ -116,9 +118,11 @@ def validate_params(
         boundary_support (int | None): Number of dilution steps used to extend
             censoring bounds, or None for unbounded tails.
 
+    Returns:
+        None: Returns when all fitting parameters are valid.
+
     Raises:
-        ValueError: If any parameter is outside acceptable range.
-    """
+        ValueError: If any parameter is outside acceptable range."""
 
     if not isinstance(dilution_factor, int) or dilution_factor <= 1:
         raise ValueError("dilution_factor must be an integer > 1.")
@@ -134,25 +138,43 @@ def validate_params(
         raise ValueError("boundary_support must be a non-negative integer or None.")
 
 
-def validate_ecoffinder_params(
+def validate_range_search_params(
     detection_level: float,
     cumulative: bool,
     first_best: bool,
-    intervals: bool,
     percentile: float,
+    range_search: str,
+    park_from_mic: float | None = None,
 ) -> None:
-    """Validate ECOFFinder-specific settings and the requested percentile."""
+    """Validate count-based range-search settings and the ECOFF percentile.
+
+    Args:
+        detection_level (float): Minimum eligible peak size as a percent.
+        cumulative (bool): Whether to fit cumulative counts.
+        first_best (bool): Whether to stop after the score starts increasing.
+        percentile (float): ECOFF percentile between zero and one hundred.
+        range_search (str): ``"largest-bin"`` or ``"first-local-peak"``.
+        park_from_mic (float | None): Upper MIC threshold for active bins.
+
+    Returns:
+        None: Raises ValueError when a setting is invalid."""
     if not isinstance(detection_level, (int, float)) or not 0 <= detection_level <= 100:
         raise ValueError("detection_level must be between 0 and 100.")
-    for name, value in (
-        ("cumulative", cumulative),
-        ("first_best", first_best),
-        ("intervals", intervals),
-    ):
+    for name, value in (("cumulative", cumulative), ("first_best", first_best)):
         if not isinstance(value, bool):
             raise ValueError(f"{name} must be a boolean.")
     if not isinstance(percentile, (int, float)) or not 0 < percentile < 100:
         raise ValueError("percentile must be between 0 and 100.")
+    if range_search not in {"largest-bin", "first-local-peak"}:
+        raise ValueError("range_search must be 'largest-bin' or 'first-local-peak'.")
+    if park_from_mic is not None and (
+        isinstance(park_from_mic, bool)
+        or not isinstance(park_from_mic, (int, float))
+        or park_from_mic <= 0
+    ):
+        raise ValueError("park_from_mic must be a positive MIC value or None.")
+    if park_from_mic is not None and range_search != "largest-bin":
+        raise ValueError("park_from_mic is only available with the largest-bin selector.")
 
 
 def validate_output_path(path: str) -> bool:
@@ -166,8 +188,7 @@ def validate_output_path(path: str) -> bool:
 
     Raises:
         ValueError: If the extension is unsupported or the directory is absent.
-        PermissionError: If the directory is not writable.
-    """
+        PermissionError: If the directory is not writable."""
     # Check extension
     allowed_exts = (".txt", ".pdf")
     if not path.lower().endswith(allowed_exts):

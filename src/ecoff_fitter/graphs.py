@@ -20,8 +20,7 @@ def plot_mic_distribution(
     density: bool = False,
     ax: Optional[matplotlib.axes.Axes] = None,
 ) -> matplotlib.axes.Axes:
-    """
-    Plot MIC observation intervals and their fitted normal component curves.
+    """Plot MIC observation intervals and their fitted normal component curves.
 
     Supports left- and right-censoring with visual tail extensions.
 
@@ -51,8 +50,7 @@ def plot_mic_distribution(
         ax (Optional[matplotlib.axes.Axes]): Axes to draw on; created if omitted.
 
     Returns:
-        matplotlib.axes.Axes: Axes containing the plot.
-    """
+        matplotlib.axes.Axes: Axes containing the plot."""
 
     tail_steps = 3.0
     arrow_offset = 0

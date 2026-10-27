@@ -1,373 +1,309 @@
+"""Coordinate WT range selection and distribution fitting."""
+
+from typing import Any, Tuple
+
 import numpy as np
-from typing import Any, Optional, Tuple
-import pandas as pd
-from numpy.typing import NDArray
-from scipy.stats import norm
-from intreg.intreg import IntReg
-from ecoff_fitter.utils import read_input, read_params
-from ecoff_fitter.defence import (
-    validate_input_source,
-    validate_params_source,
-    validate_mic_data,
-    validate_params,
-)
-from ecoff_fitter.mixture import MixtureModel
+
+from ecoff_fitter.intervals import IntervalRegressionFitter
+from ecoff_fitter.range_search import CountRangeSelector, _RangeSearchFitResult
+from ecoff_fitter.utils import prepare_input
+
+Fitter = IntervalRegressionFitter | _RangeSearchFitResult
 
 
-class ECOFFitter:
-    """
-    Estimate epidemiological cutoff values (ECOFFs) using interval regression
-    on MIC (Minimum Inhibitory Concentration) data.
+class CoordinateFit:
+    """Route MIC data through the selected WT selector and fitter.
 
-    If a single distribution is specified, a single censored-normal interval
-    regression model is fitted and the ECOFF is taken from the specified percentile.
-
-    If more than one distribution is specified, a finite mixture of interval-
-    censored normals is fitted and the ECOFF is taken from the lowest-mean
-    (wild-type) component at the given percentile.
+    Use :meth:`fit` as the single entry point. Count-based selectors return a
+    range selection that is passed to the chosen fitter. Mixture selection
+    uses interval regression directly.
     """
 
-    model_: IntReg | MixtureModel | None
-    x: NDArray[np.floating]
-    mus_: NDArray[np.floating]
-    sigmas_: NDArray[np.floating]
-    pis_: NDArray[np.floating]
-    loglike_: float
-    converged_: bool
-    n_iter_: int | None
-    ecoff_: float
-    z_percentile_: float
-    y_low_: NDArray[np.floating]
-    y_high_: NDArray[np.floating]
-    weights_: NDArray[np.floating]
-
-    def __init__(
-        self,
-        input: pd.DataFrame | str,
+    @staticmethod
+    def _fit_fixed(
+        input: Any,
+        *,
+        fitter: str,
+        range_search: str | None,
+        distributions: int,
         params: dict[str, Any] | str | None = None,
         dilution_factor: int = 2,
-        distributions: int = 1,
         boundary_support: int | None = 1,
-    ) -> None:
-        """
-        Initialize the ECOFFitter.
-
-        Input may be a DataFrame with 'MIC' and 'observations' columns, or a
-        supported file containing the same structure. Single-column MIC
-        values are also accepted.
-
-        Parameters may be supplied directly, or via a dictionary or config
-        file (yaml, yml, txt) containing dilution_factor, distributions, and
-        boundary_support.
+        percentile: float = 99.0,
+        detection_level: float = 10.0,
+        cumulative: bool = True,
+        first_best: bool = False,
+        park_from_mic: float | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> tuple[Fitter, tuple[Any, ...]]:
+        """Route one input through its selected range search and fitter.
 
         Args:
-            input: Input MIC data or file path.
-            params (dict | str | None): Optional parameter source overriding
-                manual arguments.
-            dilution_factor (int): MIC dilution factor (default 2).
-            distributions (int): Number of normal components to fit.
-            boundary_support (int | None): Number of dilution steps used to
-                extend censoring bounds (default 1); None leaves tails
-                unbounded.
-        """
+            input (Any): MIC data accepted by the input preparation helpers.
+            fitter (str): ``"least_squares"`` or ``"interval_regression"``.
+            range_search (str | None): ``"largest-bin"``,
+                ``"first-local-peak"``, ``"mixture"``, or None for direct fitting.
+            distributions (int): Number of interval-regression components.
+            params (dict[str, Any] | str | None): Optional parameter source.
+            dilution_factor (int): Ratio between adjacent MIC dilution steps.
+            boundary_support (int | None): Censoring-bound support setting.
+            percentile (float): Percentile used to calculate the ECOFF.
+            detection_level (float): Minimum eligible local-peak size.
+            cumulative (bool): Whether range fitting uses cumulative counts.
+            first_best (bool): Whether to stop when the range score increases.
+            park_from_mic (float | None): Upper MIC threshold for active bins.
+            options (dict[str, Any] | None): Solver or EM options.
 
-        validate_input_source(input)
-        validate_params_source(params)
-
-        # read input dataframe or file
-        self.obj_df = read_input(input)
-        # check input values
-        validate_mic_data(self.obj_df)
-
-        if params is not None:
-            # overide explicit arguments with input dict/file
-            dilution_factor, distributions, boundary_support, percentile = read_params(
-                params, dilution_factor, distributions, boundary_support
+        Returns:
+            tuple[Any, tuple[Any, ...]]: Fitted model and generated result."""
+        selectors = {"largest-bin", "first-local-peak", "mixture"}
+        if fitter not in {"least_squares", "interval_regression"}:
+            raise ValueError("fitter must be 'least_squares' or 'interval_regression'.")
+        if range_search not in selectors | {None}:
+            raise ValueError("range_search must be 'largest-bin', 'first-local-peak', or 'mixture'.")
+        if fitter == "least_squares" and range_search not in {"largest-bin", "first-local-peak"}:
+            raise ValueError("Least-squares fitting requires a count-based range selector.")
+        if range_search == "mixture" and fitter != "interval_regression":
+            raise ValueError("Mixture range selection requires interval_regression.")
+        if range_search is None and fitter != "interval_regression":
+            raise ValueError("Direct fitting requires interval_regression.")
+        if range_search == "mixture" and distributions < 2:
+            raise ValueError("Mixture selection requires at least two components.")
+        if range_search is None and distributions != 1:
+            raise ValueError("Multiple components require range_search='mixture'.")
+        if range_search in {"largest-bin", "first-local-peak"} and distributions != 1:
+            raise ValueError("Count-based range selectors fit one wild-type distribution.")
+        if range_search in {"mixture", None}:
+            model = IntervalRegressionFitter(
+                input=input, params=params, dilution_factor=dilution_factor,
+                distributions=distributions, boundary_support=boundary_support,
             )
-            self.percentile = percentile
-
-        # check parameter values
-        validate_params(dilution_factor, distributions, boundary_support)
-
-        self.dilution_factor = dilution_factor
-        self.distributions = distributions
-        self.boundary_support = boundary_support
-
-    def fit(self, options: dict[str, Any] | None = None) -> "ECOFFitter":
-        """
-        Define MIC intervals and fit either a single censored-normal model
-        or a finite mixture model.
-
-        Args:
-            options (dict[str, Any] | None): Optional solver or EM settings.
-
-        Returns:
-            self: The fitted ECOFFitter instance.
-        """
-        # Define and log-transform intervals
-        self.y_low_, self.y_high_, self.weights_ = self.define_intervals()
-
-        if self.distributions == 1:
-            return self.fit_single(options)
-
+            result = model.generate(percentile=percentile, options=options)
         else:
-            # multiple gaussians
-            return self.fit_mixture(options)
-
-    def fit_single(self, options: dict[str, Any] | None = None) -> "ECOFFitter":
-        """
-        Fit a single-component censored normal distribution using interval
-        regression.
-
-        Args:
-            options (dict[str, Any] | None): Optimization options for the
-                interval regression solver.
-
-        Returns:
-            self: The fitted ECOFFitter instance with stored parameters.
-        """
-
-        # single guassian
-        model = IntReg(self.y_low_, self.y_high_, weights=self.weights_)
-        model.fit(method="L-BFGS-B", options=options)
-        result = model.result
-
-        self.model_ = model
-        self.x = result.x
-        self.mus_ = np.array([result.x[0]])
-        self.sigmas_ = np.array([np.exp(result.x[1])])
-        self.pis_ = np.array([1.0])
-        self.loglike_ = -result.fun
-        self.converged_ = result.success
-        self.n_iter_ = result.nit if hasattr(result, "nit") else None
-
-        return self
-
-    def fit_mixture(self, options: dict[str, Any] | None = None) -> "ECOFFitter":
-        """
-        Fit a K-component finite mixture of censored normals using the EM
-        algorithm followed by optional refinement.
-
-        Args:
-            options (dict[str, Any] | None): EM settings (``max_iter``,
-                ``tol``) and refinement setting (``refine``).
-
-        Returns:
-            self: The fitted ECOFFitter instance with stored mixture parameters.
-        """
-
-        options = options or {}
-        max_iter = options.get("max_iter", 500)
-        tol = options.get("tol", 1e-6)
-
-        # Ensure weights array
-        weights = np.asarray(self.weights_, dtype=float)
-
-        # Run EM algorithm
-        model = MixtureModel(self.y_low_, self.y_high_, weights, self.distributions)
-        model.fit(max_iter=max_iter, tol=tol, refine=options.get("refine", True))
-
-        self.model_ = model
-        self.x = model.x
-        self.mus_ = model.mus
-        self.sigmas_ = model.sigmas
-        self.pis_ = model.pis
-        self.loglike_ = model.loglike
-        self.converged_ = model.converged
-        self.n_iter_ = model.n_iter
-
-        return self
-
-    def define_intervals(
-        self, df: Optional[pd.DataFrame] = None
-    ) -> Tuple[NDArray[np.floating], NDArray[np.floating], NDArray[np.floating]]:
-        """
-        Construct MIC interval bounds and apply left-, right-, and interval-
-        censoring rules, then transform to log dilution space.
-
-        Args:
-            df (Optional[DataFrame]): Optional MIC data to override stored
-                input.
-
-        Returns:
-            Tuple[NDArray[np.floating], NDArray[np.floating], NDArray[np.floating]]:
-                Log-transformed lower bounds, upper bounds, and observation
-                weights.
-        """
-
-        if df is None:
-            df = self.obj_df
-
-        y_low = np.zeros(len(df))
-        y_high = np.zeros(len(df))
-        weights = df.observations.to_numpy()
-
-        # Calculate tail dilution factor if not censored
-        if self.boundary_support is not None:
-            tail_dilution_factor = self.dilution_factor**self.boundary_support
-
-        def parse_mic_value(mic: str) -> float:
-            #if a fraction (ie 2 drugs), just keep the numerator
-            return float(mic.split('/')[0])
-
-        # Process each MIC value and define intervals
-        for i, mic in enumerate(df.MIC):
-
-            if mic.startswith("<="):  # Left-censored value
-                lower_bound = parse_mic_value(mic[2:])
-                y_low[i] = (
-                    1e-6
-                    if self.boundary_support is None
-                    else lower_bound / tail_dilution_factor
+            selection = CountRangeSelector(
+                input=input,
+                range_search=range_search,
+                params=params,
+                dilution_factor=dilution_factor,
+                detection_level=detection_level,
+                cumulative=cumulative,
+                first_best=first_best,
+                boundary_support=boundary_support,
+                park_from_mic=park_from_mic,
+                percentile=percentile,
+            ).select()
+            interval_fitter = None
+            if fitter == "interval_regression":
+                interval_fitter = IntervalRegressionFitter(
+                    input=selection.selected_df,
+                    dilution_factor=selection.dilution_factor,
+                    distributions=1,
+                    boundary_support=selection.boundary_support,
                 )
-                y_high[i] = lower_bound
+                interval_fitter.fit(options=options)
+            model = _RangeSearchFitResult(
+                selection,
+                fitter=fitter,
+                interval_fitter=interval_fitter,
+            )
+            result = model.generate()
+        return model, result
 
-            elif mic.startswith(">"):  # Right-censored value
-                upper_bound = parse_mic_value(mic[1:])
-                y_low[i] = upper_bound
-                y_high[i] = (
-                    np.inf
-                    if self.boundary_support is None
-                    else upper_bound * tail_dilution_factor
-                )
 
-            else:  # Exact MIC value
-                mic_value = parse_mic_value(mic)
-                y_low[i] = mic_value / self.dilution_factor
-                y_high[i] = mic_value
+    @staticmethod
+    def _select_best_k(
+        data: Any,
+        dilution_factor: int = 2,
+        boundary_support: int | None = 1,
+        percentile: float = 99,
+        criterion: str = "bic",
+        min_delta: float = 15,
+        min_pi: float = 0.05,
+        min_separation: float = 1.0,
+        max_distributions: int = 2,
+        params: dict[str, Any] | str | None = None,
+        options: dict[str, Any] | None = None,
+        sheet_name: str | None = None,
+    ) -> Tuple[int, float, IntervalRegressionFitter, Tuple[Any, ...]]:
+        """Select a component count by score and mixture diagnostics.
 
-        # Apply log transformation to intervals
-        y_low_log, y_high_log = self.log_transf_intervals(y_low, y_high)
-
-        return y_low_log, y_high_log, weights
-
-    def log_transf_intervals(
-        self, y_low: NDArray[np.floating], y_high: NDArray[np.floating]
-    ) -> Tuple[NDArray[np.floating], NDArray[np.floating]]:
-        """
-        Transform interval bounds into log base–dilution_factor space.
-
-        Args:
-            y_low (NDArray[np.floating]): Lower interval bounds.
-            y_high (NDArray[np.floating]): Upper interval bounds.
-
-        Returns:
-            Tuple[NDArray[np.floating], NDArray[np.floating]]: Transformed
-                lower and upper bounds.
-        """
-        log_base = np.log(self.dilution_factor)
-        # Transform intervals to log space
-        y_low = np.clip(y_low, 1e-12, None)
-        y_high = np.clip(y_high, 1e-12, None)
-
-        y_low_log = np.log(y_low) / log_base
-        y_high_log = np.log(y_high) / log_base
-
-        return y_low_log, y_high_log
-
-    def generate(
-        self, percentile: int | float = 99, options: dict[str, Any] | None = None
-    ) -> Tuple[Any, ...]:
-        """
-        Fit the model and compute the ECOFF at a specified percentile.
+        Candidate models are fitted in increasing component count. Selection
+        stops when the score improvement is too small, a component weight is
+        below ``min_pi``, or adjacent components are insufficiently separated.
 
         Args:
-            percentile (int | float): Desired percentile (default 99).
-            options (dict[str, Any] | None): Optional fit settings.
-
-        Returns:
-            Tuple[Any, ...]: ECOFF, percentile location, and fitted means and
+            data (Any): MIC input accepted by :func:`prepare_input`.
+            dilution_factor (int): Ratio between adjacent MIC dilution steps.
+            boundary_support (int | None): Censoring-bound support setting.
+            percentile (float): Percentile used to calculate each ECOFF.
+            criterion (str): Key in ``IntervalRegressionFitter.model_summary()`` to minimize.
+            min_delta (float): Minimum score improvement for adding a component.
+            min_pi (float): Minimum accepted component mixture weight.
+            min_separation (float): Minimum adjacent mean separation in pooled
                 standard deviations.
-        """
+            max_distributions (int): Maximum number of components to evaluate.
+            params (dict[str, Any] | str | None): Optional parameter mapping or
+                configuration file path.
+            options (dict[str, Any] | None): Solver and EM options passed to fits.
+            sheet_name (str | None): Worksheet to read from Excel input.
 
-        if hasattr(self, "percentile"):
-            percentile = self.percentile
+        Returns:
+            tuple[int, float, IntervalRegressionFitter, tuple[Any, ...]]: Selected component
+                count, criterion score, fitted model, and generated result."""
 
-        self.fit(options=options)  # updates self.model_, self.mus_, etc.
-        results = self.compute_ecoff(percentile)
-        self.ecoff_ = results[0]
-        self.z_percentile_ = results[1]
+        df = prepare_input(
+            data,
+            sheet_name=sheet_name,
+        ).global_df
 
-        return results
+        n_informative = int((df["observations"] > 0).sum())
 
-    def compute_ecoff(self, percentile: float) -> Tuple[Any, ...]:
-        """
-        Compute the ECOFF and percentile location from the fitted model.
+        if n_informative == 0:
+            raise ValueError("No MIC observations available for fitting.")
+
+        max_k = min(
+            max_distributions,
+            n_informative,
+        )
+
+        best = None
+
+        for k in range(1, max_k + 1):
+
+            # Fit model
+            fitter = IntervalRegressionFitter(
+                input=df,
+                params=params,
+                dilution_factor=dilution_factor,
+                distributions=k,
+                boundary_support=boundary_support,
+            )
+
+            result = fitter.generate(
+                percentile=percentile,
+                options=options,
+            )
+
+            score = fitter.model_summary()[criterion]
+
+            # K=1 is always the starting model
+            if best is None:
+                best = (k, score, fitter, result)
+                continue
+
+            # improve model fit?
+            _, best_score, _, _ = best
+
+            if best_score - score < min_delta:
+                break
+
+            # components sufficiently large?
+            pis = np.asarray(fitter.pis_)
+
+            if np.any(pis < min_pi):
+                break
+
+            # Are adjacent components sufficiently separated?
+            order = np.argsort(fitter.mus_)
+
+            mus = np.asarray(fitter.mus_)[order]
+            sigmas = np.asarray(fitter.sigmas_)[order]
+
+            pooled_sigmas = np.sqrt((sigmas[:-1] ** 2 + sigmas[1:] ** 2) / 2)
+
+            separations = np.diff(mus) / pooled_sigmas
+
+            if np.any(separations < min_separation):
+                break
+
+            best = (k, score, fitter, result)
+
+        assert best is not None
+        return best
+
+
+    def fit(
+        self,
+        input: Any,
+        *,
+        fitter: str,
+        range_search: str | None,
+        distributions: int | str,
+        max_distributions: int = 3,
+        criterion: str = "bic",
+        min_delta: float = 15,
+        params: dict[str, Any] | str | None = None,
+        dilution_factor: int = 2,
+        boundary_support: int | None = 1,
+        percentile: float = 99.0,
+        detection_level: float = 10.0,
+        cumulative: bool = True,
+        first_best: bool = False,
+        park_from_mic: float | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> tuple[int, Fitter, tuple[Any, ...]]:
+        """Fit one MIC table using the selected range-search and fitting methods.
 
         Args:
-            percentile (float): Percentile in the wild-type component, between
-                0 and 100.
+            input (Any): MIC data accepted by the input preparation helpers.
+            fitter (str): ``"least_squares"`` or ``"interval_regression"``.
+            range_search (str | None): Count-based selector, ``"mixture"``, or
+                None for a direct single-component interval fit.
+            distributions (int | str): Component count or ``"auto"`` for automatic
+                mixture selection.
+            max_distributions (int): Maximum components evaluated when automatic.
+            criterion (str): Model-summary score minimized during automatic selection.
+            min_delta (float): Minimum score improvement for another component.
+            params (dict[str, Any] | str | None): Optional parameter source.
+            dilution_factor (int): Ratio between adjacent MIC dilution steps.
+            boundary_support (int | None): Censoring-bound support setting.
+            percentile (float): Percentile used to calculate the ECOFF.
+            detection_level (float): Minimum eligible local-peak size.
+            cumulative (bool): Whether count-based range fitting uses cumulative counts.
+            first_best (bool): Whether count-based search stops as its score increases.
+            park_from_mic (float | None): Upper MIC threshold for active bins.
+            options (dict[str, Any] | None): Solver or EM options.
 
         Returns:
-            tuple:
-              For 1 component:
-                  (ecoff, z_percentile, mu, sigma)
-              For K components:
-                  (ecoff, z_percentile, mu1, sigma1, ..., muK, sigmaK)
-        """
+            tuple[int, Any, tuple[Any, ...]]: Selected component count, fitted model,
+                and generated result."""
+        if distributions == "auto":
+            if fitter != "interval_regression" or range_search != "mixture":
+                raise ValueError(
+                    "Automatic component selection requires interval_regression "
+                    "with range_search='mixture'."
+                )
+            selected_k, _, model, result = self._select_best_k(
+                input,
+                dilution_factor=dilution_factor,
+                boundary_support=boundary_support,
+                percentile=percentile,
+                criterion=criterion,
+                min_delta=min_delta,
+                max_distributions=max_distributions,
+                params=params,
+                options=options,
+            )
+            return selected_k, model, result
 
-        assert 0 < percentile < 100, "percentile must be between 0 and 100"
-
-        z = norm.ppf(percentile / 100)
-
-        # SINGLE COMPONENT
-        if self.distributions == 1:
-            mu = self.mus_[0]
-            sigma = self.sigmas_[0]
-            z_percentile = mu + z * sigma
-            ecoff = self.dilution_factor**z_percentile
-            return ecoff, z_percentile, mu, sigma
-
-        # MULTI-COMPONENT
-        K = self.distributions
-
-        mus = self.mus_
-        sigmas = self.sigmas_
-
-        # WT = component with lowest mean
-        wt_idx = np.argmin(mus)
-        mu_wt = mus[wt_idx]
-        sigma_wt = sigmas[wt_idx]
-
-        # compute ECOFF on WT
-        z_percentile = mu_wt + z * sigma_wt
-        ecoff = self.dilution_factor**z_percentile
-
-        # flatten
-        mus_sigmas = []
-        for k in range(K):
-            mus_sigmas.extend([mus[k], sigmas[k]])
-
-        return (ecoff, z_percentile, *mus_sigmas)
-
-    def model_summary(self) -> dict[str, Any]:
-        """Return fitted model metadata and information criteria.
-
-        Returns:
-            dict[str, Any]: Model family, component count, wild-type component,
-                fitting diagnostics, and AIC/BIC values.
-        """
-        K = self.distributions
-        n = self.obj_df.observations.sum()
-        wt_idx = int(np.argmin(self.mus_))
-
-        summary = {
-            "model_family": "interval-censored log-normal",
-            "model_type": "mixture" if K > 1 else "single",
-            "components": K,
-            "wild_type_component": wt_idx + 1,
-            "dilution_factor": self.dilution_factor,
-            "boundary_support": self.boundary_support,
-            "n_observations": n,
-            "log_likelihood": self.loglike_,
-            "converged": self.converged_,
-            "n_iter": self.n_iter_,
-            "pis": self.pis_,
-        }
-
-        # Information criteria (if identifiable)
-        k_params = 2 * K + (K - 1)
-        summary["aic"] = 2 * k_params - 2 * self.loglike_
-        summary["bic"] = np.log(n) * k_params - 2 * self.loglike_
-
-        return summary
+        selected_k = (
+            1
+            if range_search in {"largest-bin", "first-local-peak"}
+            else int(distributions)
+        )
+        model, result = self._fit_fixed(
+            input,
+            fitter=fitter,
+            range_search=range_search,
+            distributions=selected_k,
+            params=params,
+            dilution_factor=dilution_factor,
+            boundary_support=boundary_support,
+            percentile=percentile,
+            detection_level=detection_level,
+            cumulative=cumulative,
+            first_best=first_best,
+            park_from_mic=park_from_mic,
+            options=options,
+        )
+        return selected_k, model, result

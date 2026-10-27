@@ -20,7 +20,14 @@ class PreparedInput:
 
     @property
     def has_individuals(self) -> bool:
-        """Whether input preparation produced any individual group tables."""
+        """Whether input preparation produced any individual group tables.
+
+        Args:
+            None.
+
+        Returns:
+            bool: Result of the operation."""
+
         return len(self.individual_dfs) > 0
 
 
@@ -29,8 +36,7 @@ def read_input(
     data: DataFrame | list[Any] | tuple[Any, ...] | dict[str, Any] | str,
     sheet_name: Optional[str] = None,
 ) -> DataFrame:
-    """
-    Strict single-fit reader for ECOFFitter.
+    """Strict single-fit reader for interval regression.
 
     Accepts raw MIC values or a canonical ``MIC`` and ``observations`` table.
 
@@ -43,13 +49,12 @@ def read_input(
         DataFrame: Canonical table with ``MIC`` and ``observations`` columns.
 
     Raises:
-        ValueError: If the normalized input contains individual group columns.
-    """
+        ValueError: If the normalized input contains individual group columns."""
     prepared = prepare_input(data, sheet_name=sheet_name)
 
     if prepared.has_individuals:
         raise ValueError(
-            "ECOFFitter expects a single MIC + observations table. "
+            "IntervalRegressionFitter expects a single MIC + observations table. "
             "For multi-column input, use prepare_input() or run_ecoff_analysis()."
         )
 
@@ -59,8 +64,7 @@ def prepare_input(
     data: DataFrame | list[Any] | tuple[Any, ...] | dict[str, Any] | str,
     sheet_name: Optional[str] = None,
 ) -> PreparedInput:
-    """
-    Normalize input for both single-fit and multi-fit workflows.
+    """Normalize input for both single-fit and multi-fit workflows.
 
     Input rules:
     - 1 column only: treat as raw MIC values and collapse to MIC + observations.
@@ -74,8 +78,7 @@ def prepare_input(
         sheet_name (Optional[str]): Worksheet name for Excel input.
 
     Returns:
-        PreparedInput: Aggregate table and any per-column tables.
-    """
+        PreparedInput: Aggregate table and any per-column tables."""
     df = _load_raw_frame(data, sheet_name=sheet_name)
 
     if df.shape[1] == 1:
@@ -130,8 +133,7 @@ def _load_raw_frame(
         DataFrame: Loaded table with whitespace removed from column names.
 
     Raises:
-        ValueError: If the input type or file extension is unsupported.
-    """
+        ValueError: If the input type or file extension is unsupported."""
     if isinstance(data, pd.DataFrame):
         df = data.copy()
     elif isinstance(data, (list, tuple)):
@@ -164,8 +166,7 @@ def read_params(
     dflt_dists: int,
     dflt_tails: Optional[int],
 ) -> Tuple[int, int, Optional[int], float]:
-    """
-    Read ECOFF model parameters from a YAML, TXT, or dictionary source.
+    """Read ECOFF model parameters from a YAML, TXT, or dictionary source.
 
     Args:
         params (str | dict): File path to a YAML or text parameter file,
@@ -181,8 +182,7 @@ def read_params(
     Raises:
         FileNotFoundError: If the specified file does not exist.
         ValueError: If file type is unsupported.
-        ValueError: If ``params`` is not a mapping after path handling.
-    """
+        ValueError: If ``params`` is not a mapping after path handling."""
 
     params = _load_params_mapping(params)
 
@@ -195,38 +195,54 @@ def read_params(
     return dilution_factor, distributions, boundary_support, percentile
 
 
-def read_ecoffinder_params(
+def read_range_search_params(
     params: str | dict[str, Any],
     dflt_dilution: int,
     dflt_detection: float,
     dflt_cumulative: bool,
     dflt_first_best: bool,
-    dflt_intervals: bool,
     dflt_tails: int | None,
     dflt_percentile: float,
-) -> tuple[int, Any, float, bool, bool, bool, int | None, float]:
-    """Read common and ECOFFinder-specific settings from a config source.
+    dflt_range_search: str,
+    dflt_park_from_mic: float | None = None,
+) -> tuple[int, float, bool, bool, int | None, float, str, float | None]:
+    """Read shared and count-based range-search settings from configuration.
 
-    Supported keys are ``dilution_factor``, ``distributions``,
-    ``detection_level``, ``cumulative``, ``first_best``, ``intervals``,
-    ``boundary_support``, and ``percentile``. ``distributions`` is included
-    so callers can reject mixture settings that ECOFFinder cannot use.
-    """
+    Args:
+        params (str | dict[str, Any]): Configuration mapping or file path.
+        dflt_dilution (int): Default dilution factor.
+        dflt_detection (float): Default peak detection threshold.
+        dflt_cumulative (bool): Default cumulative fitting setting.
+        dflt_first_best (bool): Default early-stop setting.
+        dflt_tails (int | None): Default censoring-bound support.
+        dflt_percentile (float): Default ECOFF percentile.
+        dflt_range_search (str): Default range-search selector.
+        dflt_park_from_mic (float | None): Default parked MIC threshold.
+
+    Returns:
+        tuple: Updated settings in the same order as the default arguments."""
     values = _load_params_mapping(params)
     return (
         values.get("dilution_factor", dflt_dilution),
-        values.get("distributions", 1),
         values.get("detection_level", dflt_detection),
         values.get("cumulative", dflt_cumulative),
         values.get("first_best", dflt_first_best),
-        values.get("intervals", dflt_intervals),
         values.get("boundary_support", dflt_tails),
         values.get("percentile", dflt_percentile),
+        values.get("range_search", dflt_range_search),
+        values.get("park_from_mic", dflt_park_from_mic),
     )
 
 
 def _load_params_mapping(params: str | dict[str, Any]) -> dict[str, Any]:
-    """Load a parameter mapping and coerce known values in TXT files."""
+    """Load a parameter mapping and coerce known values in TXT files.
+
+    Args:
+        params (str | dict[str, Any]): Input value.
+
+    Returns:
+        dict[str, Any]: Result of the operation."""
+
     if isinstance(params, str):
         if not os.path.exists(params):
             raise FileNotFoundError(f"Parameter file not found: {params}")
@@ -257,7 +273,11 @@ def _load_params_mapping(params: str | dict[str, Any]) -> dict[str, Any]:
                         parsed[key] = float(val)
                     elif key == "detection_level":
                         parsed[key] = float(val)
-                    elif key in {"cumulative", "first_best", "intervals"}:
+                    elif key == "park_from_mic":
+                        parsed[key] = float(val)
+                    elif key == "range_search":
+                        parsed[key] = val.strip().lower()
+                    elif key in {"cumulative", "first_best"}:
                         parsed[key] = _parse_bool(val)
                     else:
                         parsed[key] = val
@@ -271,7 +291,14 @@ def _load_params_mapping(params: str | dict[str, Any]) -> dict[str, Any]:
 
 
 def _parse_bool(value: str) -> bool:
-    """Parse a boolean value used in a text parameter file."""
+    """Parse a boolean value used in a text parameter file.
+
+    Args:
+        value (str): Input value.
+
+    Returns:
+        bool: Result of the operation."""
+
     normalized = value.strip().lower()
     if normalized in {"true", "yes", "1"}:
         return True
@@ -292,7 +319,6 @@ def read_multi_obs_input(
 
     Returns:
         Dict[str, Any]: Mapping with ``"global"`` and ``"individual"``
-            entries.
-    """
+            entries."""
     prepared = prepare_input(data, sheet_name=sheet_name)
     return {"global": prepared.global_df, "individual": prepared.individual_dfs}

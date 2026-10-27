@@ -38,8 +38,7 @@ class MixtureModel:
         weights: NDArray[np.floating] | list[float],
         distributions: int,
     ) -> None:
-        """
-        Initialise a K-component mixture model using K-means clustering.
+        """Initialise a K-component mixture model using K-means clustering.
 
         Initial parameters are generated as follows:
             - μ_k: K-means cluster centres of interval midpoints.
@@ -54,7 +53,10 @@ class MixtureModel:
             weights (NDArray[np.floating] | list[float]): Weight for each
                 interval.
             distributions (int): Number of mixture components (K).
-        """
+
+        Returns:
+            None: Result of the operation."""
+
         self.K = distributions
 
         y_low = np.asarray(y_low, dtype=float)
@@ -110,8 +112,7 @@ class MixtureModel:
     def fit(
         self, max_iter: int = 500, tol: float = 1e-6, refine: bool = True
     ) -> "MixtureModel":
-        """
-        Fit the mixture model using EM and optional refinement.
+        """Fit the mixture model using EM and optional refinement.
 
         Args:
             max_iter (int): Maximum number of EM iterations.
@@ -120,8 +121,7 @@ class MixtureModel:
                 (μ, log σ, logits) after EM using L-BFGS-B.
 
         Returns:
-            self: The fitted MixtureModel instance.
-        """
+            self: The fitted MixtureModel instance."""
 
         self.em(max_iter, tol)
 
@@ -131,8 +131,7 @@ class MixtureModel:
         return self
 
     def em(self, max_iter: int = 500, tol: float = 1e-6) -> "MixtureModel":
-        """
-        Expectation–Maximization (EM) algorithm for a K-component mixture
+        """Expectation–Maximization (EM) algorithm for a K-component mixture
         of interval-censored normal distributions.
 
         E-step:
@@ -151,8 +150,7 @@ class MixtureModel:
 
         Notes:
             The EM loop records the final iteration count, convergence flag,
-            log-likelihood, and packed parameter vector on this instance.
-        """
+            log-likelihood, and packed parameter vector on this instance."""
 
         N = len(self.y_low)
 
@@ -230,8 +228,7 @@ class MixtureModel:
         return self
 
     def refine_mixture(self) -> "MixtureModel":
-        """
-        Refinement step for a general K-component mixture model using L-BFGS-B.
+        """Refinement step for a general K-component mixture model using L-BFGS-B.
 
         Optimizes all parameters jointly:
             mus, log(sigmas), and mixture logits (K−1 free parameters),
@@ -243,7 +240,10 @@ class MixtureModel:
         Notes:
             The joint objective is the weighted negative log-likelihood of
             the observed intervals under the mixture.
-        """
+
+        Args:
+            None."""
+
 
         y_low = np.asarray(self.y_low, float)
         y_high = np.asarray(self.y_high, float)
@@ -262,8 +262,7 @@ class MixtureModel:
 
             Returns:
                 tuple[NDArray[np.floating], NDArray[np.floating], NDArray[np.floating]]:
-                    Component means, scales, and normalized mixture weights.
-            """
+                    Component means, scales, and normalized mixture weights."""
             mus = params[: self.K]
             sigmas = np.exp(params[self.K : 2 * self.K])
 
@@ -282,8 +281,7 @@ class MixtureModel:
                 params (NDArray[np.floating]): Flat mixture parameter vector.
 
             Returns:
-                float: Negative weighted log-likelihood.
-            """
+                float: Negative weighted log-likelihood."""
             mus, sigmas, pis = unpack_params(params)
 
             # P(interval | component k)
