@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Callable, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -237,7 +237,8 @@ class LeastSquaresRangeSearch:
                 NDArray[np.float64]: Residuals for the candidate range."""
             return observed - self._predicted_counts(params, fit_start, end)
 
-        result = least_squares(
+        solver = cast(Callable[..., Any], least_squares)
+        result = solver(
             residuals,
             initial,
             bounds=(
