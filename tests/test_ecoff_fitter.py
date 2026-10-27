@@ -2,16 +2,16 @@ import pytest
 import numpy as np
 import pandas as pd
 
-from ecoff_fitter import ECOFFitter
+from ecoff_fitter import IntervalRegressionFitter
 
 
 #  __init__.py AND PACKAGE IMPORT TESTS
 
-def test_ecoffitter_importable_from_root():
-    """Package root must expose ECOFFitter."""
+def test_interval_regression_fitter_importable_from_root():
+    """Package root must expose IntervalRegressionFitter."""
     import ecoff_fitter
-    assert hasattr(ecoff_fitter, "ECOFFitter")
-    assert ecoff_fitter.ECOFFitter is ECOFFitter
+    assert hasattr(ecoff_fitter, "IntervalRegressionFitter")
+    assert ecoff_fitter.IntervalRegressionFitter is IntervalRegressionFitter
 
 
 def test_main_invokes_cli(monkeypatch):
@@ -51,7 +51,7 @@ def censored_data():
 
 
 def test_init_with_dataframe(simple_data):
-    fitter = ECOFFitter(simple_data, dilution_factor=2, distributions=1)
+    fitter = IntervalRegressionFitter(simple_data, dilution_factor=2, distributions=1)
     assert fitter.dilution_factor == 2
     assert fitter.distributions == 1
     assert "MIC" in fitter.obj_df.columns
@@ -61,7 +61,7 @@ def test_init_with_dataframe(simple_data):
 #  INTERVAL CONSTRUCTION
 
 def test_define_intervals_uncensored(simple_data):
-    fitter = ECOFFitter(simple_data)
+    fitter = IntervalRegressionFitter(simple_data)
     y_low, y_high, weights = fitter.define_intervals()
 
     assert np.all(y_low < y_high)
@@ -77,7 +77,7 @@ def test_define_intervals_uncensored(simple_data):
 
 
 def test_define_intervals_with_censoring(censored_data):
-    fitter = ECOFFitter(censored_data, boundary_support=None)
+    fitter = IntervalRegressionFitter(censored_data, boundary_support=None)
     y_low, y_high, _ = fitter.define_intervals()
 
     # left censored: <=0.5 → low = ~0
@@ -88,7 +88,7 @@ def test_define_intervals_with_censoring(censored_data):
 
 
 def test_log_transf_intervals_direct(simple_data):
-    fitter = ECOFFitter(simple_data)
+    fitter = IntervalRegressionFitter(simple_data)
     y_low = np.array([0.5, 1.0, 2.0])
     y_high = np.array([1.0, 2.0, 4.0])
     low_log, high_log = fitter.log_transf_intervals(y_low, y_high)
@@ -103,7 +103,7 @@ def test_log_transf_intervals_direct(simple_data):
 
 @pytest.mark.parametrize("dists", [1, 2])
 def test_fit_model_runs(simple_data, dists):
-    fitter = ECOFFitter(simple_data, distributions=dists)
+    fitter = IntervalRegressionFitter(simple_data, distributions=dists)
     result = fitter.fit()
 
     # After fitting, Fitter must have mus_, sigmas_, etc.
@@ -117,7 +117,7 @@ def test_fit_model_runs(simple_data, dists):
 
 
 def test_fit_mixture_returns_structure(simple_data):
-    fitter = ECOFFitter(simple_data, distributions=2)
+    fitter = IntervalRegressionFitter(simple_data, distributions=2)
     fitter.fit()
 
     assert len(fitter.mus_) == 2
@@ -133,7 +133,7 @@ def test_fit_mixture_returns_structure(simple_data):
 # ============================================================
 
 def test_generate_returns_valid_output(simple_data):
-    fitter = ECOFFitter(simple_data, distributions=1)
+    fitter = IntervalRegressionFitter(simple_data, distributions=1)
     ecoff, z_pt, mu, sigma = fitter.generate(99)
 
     assert isinstance(ecoff, float)
@@ -142,7 +142,7 @@ def test_generate_returns_valid_output(simple_data):
 
 
 def test_compute_ecoff_matches_generate(simple_data):
-    fitter = ECOFFitter(simple_data)
+    fitter = IntervalRegressionFitter(simple_data)
 
     ecoff_g, z_g, mu_g, sig_g = fitter.generate(99)
     ecoff_d, z_d, mu_d, sig_d = fitter.compute_ecoff(99)
@@ -154,7 +154,7 @@ def test_compute_ecoff_matches_generate(simple_data):
 
 
 def test_compute_ecoff_percentiles_increase(simple_data):
-    fitter = ECOFFitter(simple_data)
+    fitter = IntervalRegressionFitter(simple_data)
     fitter.fit()
 
     ecoff95, *_ = fitter.compute_ecoff(95)
@@ -168,7 +168,7 @@ def test_compute_ecoff_percentiles_increase(simple_data):
 # ============================================================
 
 def test_full_pipeline_mixture(simple_data):
-    fitter = ECOFFitter(simple_data, distributions=2)
+    fitter = IntervalRegressionFitter(simple_data, distributions=2)
     results = fitter.generate(97.5)
 
     ecoff = results[0]
@@ -198,7 +198,7 @@ def test_em_mixture_handles_overlap_and_separation(mu1, mu2):
         "observations": weight,
     })
 
-    fitter = ECOFFitter(df, distributions=2)
+    fitter = IntervalRegressionFitter(df, distributions=2)
     fitter.y_low_ = np.log2(y_low)
     fitter.y_high_ = np.log2(y_high)
     fitter.weights_ = weight
@@ -215,7 +215,7 @@ def test_em_mixture_handles_overlap_and_separation(mu1, mu2):
 
 def test_fit_mixture_refine_flag(monkeypatch, simple_data):
     """Ensure refine=True path runs without error."""
-    fitter = ECOFFitter(simple_data, distributions=2)
+    fitter = IntervalRegressionFitter(simple_data, distributions=2)
 
     # monkeypatch MixtureModel.fit to simulate convergence
     class FakeModel:
@@ -242,7 +242,7 @@ def test_model_summary_basic(simple_data):
     model_summary() should return a structured, self-consistent summary
     after fitting.
     """
-    fitter = ECOFFitter(simple_data, distributions=2)
+    fitter = IntervalRegressionFitter(simple_data, distributions=2)
     fitter.fit()
 
     summary = fitter.model_summary()

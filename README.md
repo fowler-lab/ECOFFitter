@@ -84,9 +84,9 @@ censored observations.
 Fit one dataset directly:
 
 ```python
-from ecoff_fitter import ECOFFitter
+from ecoff_fitter import IntervalRegressionFitter
 
-fitter = ECOFFitter(input="demo_files/censored.txt", distributions=1)
+fitter = IntervalRegressionFitter(input="demo_files/censored.txt", distributions=1)
 result = fitter.generate(percentile=99)
 print(result)
 ```
@@ -99,6 +99,7 @@ from ecoff_fitter import run_ecoff_analysis
 run = run_ecoff_analysis(
     "demo_files/multi_assay.txt",
     distributions=2,
+    range_search="mixture",
     fit_individual=True,
     percentile=99,
 )
@@ -108,8 +109,41 @@ for assay, report in run.individual_reports.items():
     print(report.to_text(label=assay))
 ```
 
-Set `distributions="auto"` in `run_ecoff_analysis` to select a component
-count by the AIC or BIC criterion. `max_distributions` sets the largest count
+Choose the fitting method and WT selector independently. The two count-based
+selectors can use either least squares or interval regression; mixture
+selection is available with interval regression only:
+
+```python
+run = run_ecoff_analysis(
+    "demo_files/multi_assay.txt",
+    fitter="interval_regression",
+    range_search="first-local-peak",
+    fit_individual=True,
+)
+
+print(run.global_report.to_text(verbose=True))
+```
+
+`range_search` accepts `"largest-bin"`, `"first-local-peak"`, or `"mixture"`.
+The first-local-peak selector uses the fixed 19-bin log2 MIC grid and requires
+`dilution_factor=2`. The largest-bin selector uses the highest-frequency active
+bin; `park_from_mic` can exclude higher bins before selection. Count-based
+selectors fit one wild-type range. Mixture selection uses the interval-regression
+mixture model and supports fixed or automatically selected component counts.
+
+For example, select the largest active bin and fit it with interval regression:
+
+```python
+run = run_ecoff_analysis(
+    data,
+    fitter="interval_regression",
+    range_search="largest-bin",
+    park_from_mic=32,
+)
+```
+
+Set `range_search="mixture"` and `distributions="auto"` in
+`run_ecoff_analysis` to select a component count by the AIC or BIC criterion. `max_distributions` sets the largest count
 to consider; `criterion`, `min_delta`, `min_pi`, and `min_separation` control
 the selection checks. The selected aggregate count is available as
 `run.selected_k`.
@@ -122,7 +156,9 @@ or more assay columns:
 ```bash
 ecoff-fitter \
   --input demo_files/multi_assay.txt \
-  --distributions 2 \
+  --fitter interval_regression \
+  --range_search largest-bin \
+  --park_from_mic 32 \
   --percentile 99 \
   --fit_individual \
   --outfile demo_files/output.pdf
@@ -134,13 +170,19 @@ available as `python -m ecoff_fitter`.
 | Option | Default | Description |
 | --- | --- | --- |
 | `--input INPUT` | Required | Input MIC dataset. |
-| `--params PARAMS` | None | YAML or TXT parameter file; its values override corresponding command-line values. |
+| `--fitter METHOD` | `interval_regression` | `least_squares` or `interval_regression`. |
+| `--range_search METHOD` | None | `largest-bin`, `first-local-peak`, or `mixture`. |
+| `--params PARAMS` | None | YAML or TXT parameter file; file values override matching options. |
 | `--dilution_factor N` | `2` | Ratio between adjacent MIC dilution steps. |
-| `--distributions K` | `1` | Number of normal components to fit. The CLI accepts an integer; automatic selection is available in the Python workflow API. |
-| `--boundary_support N` | `1` | Number of dilution steps used to extend censoring bounds. Use `None` in a parameter file for unbounded tails. |
-| `--percentile P` | `99.0` | Percentile used to calculate the ECOFF; must be between 0 and 100. |
-| `--fit_individual` | Off | Fit each assay column as well as the aggregate observations. |
+| `--distributions K` | `1` | Number of normal components to fit. |
+| `--boundary_support N` | `1` | Number of dilution steps used to extend censoring bounds. |
+| `--percentile P` | `99.0` | Percentile used to calculate the ECOFF. |
+| `--fit_individual` | Off | Fit each assay column as well as aggregate observations. |
 | `--density` | Off | Plot probability density instead of counts. |
+| `--detection_level P` | `10.0` | Minimum eligible local-peak size as a percentage of observations. |
+| `--park_from_mic MIC` | None | Exclude this MIC and higher bins before largest-bin selection. |
+| `--cumulative` / `--no-cumulative` | On | Use cumulative counts or per-bin frequencies in least-squares range fitting. |
+| `--first_best` | Off | Stop range search after its score starts increasing. |
 | `--outfile PATH` | None | Write a text report (`.txt`) or PDF report (`.pdf`). |
 | `--verbose` | Off | Include model details in printed text output. |
 

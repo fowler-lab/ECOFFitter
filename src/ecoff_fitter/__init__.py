@@ -1,37 +1,26 @@
-"""
-ECOFF Fitter — Estimate epidemiological cutoff values (ECOFFs)
-using interval regression on MIC (Minimum Inhibitory Concentration) data.
+"""ECOFF analysis tools for MIC data.
 
-Single-fit API
---------------
-from ecoff_fitter import ECOFFitter
+Direct interval-regression fitting:
 
-fitter = ECOFFitter(input="mic_data.csv")
-result = fitter.generate(percentile=99)
+    from ecoff_fitter import IntervalRegressionFitter
 
-Multi-fit / workflow API
-------------------------
-from ecoff_fitter import run_ecoff_analysis
+    fitter = IntervalRegressionFitter(input="mic_data.csv")
+    result = fitter.generate(percentile=99)
 
-run = run_ecoff_analysis(
-    "mic_data.csv",
-    fit_individual=True,
-)
+Multi-assay workflow:
 
-print(run.global_report.to_text())
+    from ecoff_fitter import run_ecoff_analysis
 
-CLI
----
-python -m ecoff_fitter --input mic_data.csv
+    run = run_ecoff_analysis("mic_data.csv", fitter="interval_regression")
 """
 
 from importlib.metadata import PackageNotFoundError, version
 
-from .core import ECOFFitter
+from .intervals import IntervalRegressionFitter
 from .workflow import ECOFFRun, run_ecoff_analysis
 
 __all__ = [
-    "ECOFFitter",
+    "IntervalRegressionFitter",
     "run_ecoff_analysis",
     "ECOFFRun",
 ]
@@ -43,7 +32,14 @@ except PackageNotFoundError:
 
 
 def main() -> None:
-    """Entry point for `python -m ecoff_fitter`."""
+    """Run the command-line entry point.
+
+
+    Returns:
+        None.
+
+    Args:
+        None."""
     from .cli import main as cli_main
 
     cli_main()

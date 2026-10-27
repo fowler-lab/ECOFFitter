@@ -5,6 +5,7 @@ import pandas as pd
 import pytest
 
 import ecoff_fitter.workflow as workflow
+import ecoff_fitter.core as core
 from ecoff_fitter.utils import PreparedInput
 
 
@@ -26,8 +27,11 @@ def test_run_ecoff_analysis_fixed_components_with_individual_fits(monkeypatch):
 
     global_fitter = _fitter()
     individual_fitter = _fitter()
-    fitter_factory = MagicMock(side_effect=[global_fitter, individual_fitter])
-    monkeypatch.setattr(workflow, "ECOFFitter", fitter_factory)
+    coordinator = MagicMock(side_effect=[
+        (2, global_fitter, global_fitter.generate.return_value),
+        (2, individual_fitter, individual_fitter.generate.return_value),
+    ])
+    monkeypatch.setattr(workflow.CoordinateFit, "fit", coordinator)
     monkeypatch.setattr(
         workflow.GenerateReport,
         "from_fitter",
@@ -37,6 +41,7 @@ def test_run_ecoff_analysis_fixed_components_with_individual_fits(monkeypatch):
     run = workflow.run_ecoff_analysis(
         "input",
         distributions=2,
+        range_search="mixture",
         percentile=97.5,
         fit_individual=True,
         density=True,
@@ -49,10 +54,10 @@ def test_run_ecoff_analysis_fixed_components_with_individual_fits(monkeypatch):
     assert set(run.individual_reports) == {"assay"}
     assert global_fitter.density is True
     assert individual_fitter.density is True
-    assert fitter_factory.call_count == 2
-    global_fitter.generate.assert_called_once_with(
-        percentile=97.5, options={"max_iter": 10}
-    )
+    assert coordinator.call_count == 2
+    for call_args in coordinator.call_args_list:
+        assert call_args.kwargs["fitter"] == "interval_regression"
+        assert call_args.kwargs["range_search"] == "mixture"
 
 
 def test_run_ecoff_analysis_skips_individual_fits(monkeypatch):
@@ -62,15 +67,15 @@ def test_run_ecoff_analysis_skips_individual_fits(monkeypatch):
     )
     monkeypatch.setattr(workflow, "prepare_input", lambda data, sheet_name=None: prepared)
     fitter = _fitter()
-    fitter_factory = MagicMock(return_value=fitter)
-    monkeypatch.setattr(workflow, "ECOFFitter", fitter_factory)
+    coordinator = MagicMock(return_value=(1, fitter, fitter.generate.return_value))
+    monkeypatch.setattr(workflow.CoordinateFit, "fit", coordinator)
     monkeypatch.setattr(workflow.GenerateReport, "from_fitter", MagicMock())
 
     run = workflow.run_ecoff_analysis("input", fit_individual=False)
 
     assert run.individual_fits == {}
     assert run.individual_reports == {}
-    assert fitter_factory.call_count == 1
+    assert coordinator.call_count == 1
     assert run.global_report is not None
 
 
@@ -81,12 +86,13 @@ def test_run_ecoff_analysis_auto_selection(monkeypatch):
     monkeypatch.setattr(workflow, "prepare_input", lambda data, sheet_name=None: prepared)
     fitter = _fitter()
     result = (2.0, 1.0)
-    select = MagicMock(return_value=(3, 10.0, fitter, result))
-    monkeypatch.setattr(workflow, "select_best_k", select)
+    select = MagicMock(return_value=(3, fitter, result))
+    monkeypatch.setattr(workflow.CoordinateFit, "fit", select)
     monkeypatch.setattr(workflow.GenerateReport, "from_fitter", MagicMock())
 
     run = workflow.run_ecoff_analysis(
-        "input", distributions="auto", max_distributions=4, fit_individual=False
+        "input", distributions="auto", range_search="mixture",
+        max_distributions=4, fit_individual=False
     )
 
     assert run.selected_k == 3
@@ -98,16 +104,16 @@ def test_run_ecoff_analysis_auto_selection(monkeypatch):
 def test_select_best_k_raises_when_no_observations():
     data = pd.DataFrame({"MIC": ["1", "2"], "observations": [0, 0]})
     with pytest.raises(ValueError, match="No MIC observations"):
-        workflow.select_best_k(data)
+        core.CoordinateFit._select_best_k(data)
 
 
 def test_select_best_k_stops_when_score_improvement_is_too_small(monkeypatch):
     data = pd.DataFrame({"MIC": ["1", "2", "4"], "observations": [3, 5, 2]})
     first, second = _fitter(score=100), _fitter(score=90)
     factory = MagicMock(side_effect=[first, second])
-    monkeypatch.setattr(workflow, "ECOFFitter", factory)
+    monkeypatch.setattr(core, "IntervalRegressionFitter", factory)
 
-    k, score, fitter, result = workflow.select_best_k(
+    k, score, fitter, result = core.CoordinateFit._select_best_k(
         data, max_distributions=3, min_delta=15
     )
 
@@ -129,9 +135,9 @@ def test_select_best_k_rejects_small_or_overlapping_component(
     first = _fitter(score=100)
     second = _fitter(score=70, pis=pis, mus=mus, sigmas=sigmas)
     factory = MagicMock(side_effect=[first, second])
-    monkeypatch.setattr(workflow, "ECOFFitter", factory)
+    monkeypatch.setattr(core, "IntervalRegressionFitter", factory)
 
-    selected = workflow.select_best_k(
+    selected = core.CoordinateFit._select_best_k(
         data, max_distributions=2, min_delta=15, min_pi=0.05, min_separation=1.0
     )
 
