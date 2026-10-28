@@ -8,6 +8,14 @@ Concentration (MIC) observations and estimates epidemiological cutoff values
 selection of the number of mixture components. Text and PDF reports can include
 aggregate results and optional per-assay results.
 
+It also implements a Python version of ECOFFinder V21 and MicDat117, both used to generate published ECOFF's by CLSI and ECUAST, respectively.
+
+All three methods utilise different approaches for finding the pWT distribution and different algorithms for fitting the assumed gaussian. One can accordingly 'plug and play' different combinations of methods, such as using MicDat117's pWT finder by specifying `range_search = "first-local_peak"` and then harnessing the benefit of treating MICs as intervals by specifying `fitter = interval_regression`.
+
+
+![1793185762706](image/README/1793185762706.jpg)
+
+
 Demo input files are in `demo_files/`.
 
 ## Installation
@@ -167,24 +175,24 @@ ecoff-fitter \
 Run `ecoff-fitter --help` for the complete option list. The same CLI is
 available as `python -m ecoff_fitter`.
 
-| Option | Default | Description |
-| --- | --- | --- |
-| `--input INPUT` | Required | Input MIC dataset. |
-| `--fitter METHOD` | `interval_regression` | `least_squares` or `interval_regression`. |
-| `--range_search METHOD` | None | `largest-bin`, `first-local-peak`, or `mixture`. |
-| `--params PARAMS` | None | YAML or TXT parameter file; file values override matching options. |
-| `--dilution_factor N` | `2` | Ratio between adjacent MIC dilution steps. |
-| `--distributions K` | `1` | Number of normal components to fit. |
-| `--boundary_support N` | `1` | Number of dilution steps used to extend censoring bounds. |
-| `--percentile P` | `99.0` | Percentile used to calculate the ECOFF. |
-| `--fit_individual` | Off | Fit each assay column as well as aggregate observations. |
-| `--density` | Off | Plot probability density instead of counts. |
-| `--detection_level P` | `10.0` | Minimum eligible local-peak size as a percentage of observations. |
-| `--park_from_mic MIC` | None | Exclude this MIC and higher bins before largest-bin selection. |
-| `--cumulative` / `--no-cumulative` | On | Use cumulative counts or per-bin frequencies in least-squares range fitting. |
-| `--first_best` | Off | Stop range search after its score starts increasing. |
-| `--outfile PATH` | None | Write a text report (`.txt`) or PDF report (`.pdf`). |
-| `--verbose` | Off | Include model details in printed text output. |
+| Option                                 | Default                 | Description                                                                  |
+| -------------------------------------- | ----------------------- | ---------------------------------------------------------------------------- |
+| `--input INPUT`                      | Required                | Input MIC dataset.                                                           |
+| `--fitter METHOD`                    | `interval_regression` | `least_squares` or `interval_regression`.                                |
+| `--range_search METHOD`              | None                    | `largest-bin`, `first-local-peak`, or `mixture`.                       |
+| `--params PARAMS`                    | None                    | YAML or TXT parameter file; file values override matching options.           |
+| `--dilution_factor N`                | `2`                   | Ratio between adjacent MIC dilution steps.                                   |
+| `--distributions K`                  | `1`                   | Number of normal components to fit.                                          |
+| `--boundary_support N`               | `1`                   | Number of dilution steps used to extend censoring bounds.                    |
+| `--percentile P`                     | `99.0`                | Percentile used to calculate the ECOFF.                                      |
+| `--fit_individual`                   | Off                     | Fit each assay column as well as aggregate observations.                     |
+| `--density`                          | Off                     | Plot probability density instead of counts.                                  |
+| `--detection_level P`                | `10.0`                | Minimum eligible local-peak size as a percentage of observations.            |
+| `--park_from_mic MIC`                | None                    | Exclude this MIC and higher bins before largest-bin selection.               |
+| `--cumulative` / `--no-cumulative` | On                      | Use cumulative counts or per-bin frequencies in least-squares range fitting. |
+| `--first_best`                       | Off                     | Stop range search after its score starts increasing.                         |
+| `--outfile PATH`                     | None                    | Write a text report (`.txt`) or PDF report (`.pdf`).                     |
+| `--verbose`                          | Off                     | Include model details in printed text output.                                |
 
 ## Output
 
